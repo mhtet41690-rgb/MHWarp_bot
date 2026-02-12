@@ -6,7 +6,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # Railway Variables ထဲမှာ BOT_TOKEN ထည့်ထားပေးပါ
 TOKEN = os.getenv("BOT_TOKEN")
-WGCF_URL = "https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_2.2.23_linux_amd64"
+WGCF_URL = "https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_2.2.30_linux_amd64"
 
 def setup_wgcf():
     if not os.path.exists("wgcf"):
