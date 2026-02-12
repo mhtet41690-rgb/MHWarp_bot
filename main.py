@@ -55,11 +55,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f.write(new_content)
 
                 # User ထံသို့ File ပို့ပေးခြင်း
-                with open("MHwarp-profile.conf", "rb") as file:
+                with open("wgcf-profile.conf", "rb") as file:
                     await context.bot.send_document(
                         chat_id=update.effective_chat.id,
                         document=file, 
-                        filename="WARP_Port500.conf",
+                        filename="MHWarp.conf",
                         caption="conf ကို ဒေါင်းပြီး wireguard တွင်အသုံးပြုနိုင်ပါပြီ ❗ရောင်းချခွင့်မပြု❗။"
                     )
             else:
