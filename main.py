@@ -2,14 +2,27 @@ import os
 import subprocess
 import requests
 import time
+import threading
+import http.server
+import socketserver
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
 from telegram.error import BadRequest
 
 # --- Settings ---
 TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_USERNAME = "@mhwarp" # သင့် Channel Username ကို ပြောင်းရန်
+CHANNEL_USERNAME = "@mhwarp"  # သင့် Channel Username ကို ပြောင်းပါ
 WGCF_URL = "https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_2.2.30_linux_amd64"
+
+# --- Koyeb Health Check Server ---
+def run_health_server():
+    """Koyeb Health Check အောင်မြင်ရန် Port 8080 (သို့မဟုတ် ပေးထားသော Port) တွင် Server ဖွင့်ခြင်း"""
+    PORT = int(os.environ.get("PORT", 8080))
+    Handler = http.server.SimpleHTTPRequestHandler
+    # အငြင်းပွားမှုမရှိစေရန် အောက်ပါအတိုင်း ဖွင့်လှစ်ပါသည်
+    with socketserver.TCPServer(("", PORT), Handler) as httpd:
+        print(f"Health Server running on port {PORT}")
+        httpd.serve_forever()
 
 def setup_wgcf():
     if not os.path.exists("wgcf"):
@@ -48,34 +61,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text(f"⚠️ {CHANNEL_USERNAME} ကို အရင် Join ပေးပါ။", show_alert=True)
             return
 
-        status_msg = await query.message.reply_text("⏳ Cloudflare Server နှင့် ချိတ်ဆက်နေပါသည်။ ခဏစောင့်ပေးပါ...")
+        status_msg = await query.message.reply_text("⏳ Cloudflare နှင့် ချိတ်ဆက်နေပါသည်...")
         
         cwd = os.getcwd()
         wgcf_path = os.path.join(cwd, "wgcf")
         files_to_clean = ["wgcf-account.json", "wgcf-profile.conf", "wgcf-identity.json"]
 
-        # အဟောင်းများ ရှင်းလင်းခြင်း
         for f in files_to_clean:
             if os.path.exists(os.path.join(cwd, f)): os.remove(os.path.join(cwd, f))
 
         try:
             setup_wgcf()
             
-            # --- Retry Logic (၃ ကြိမ်အထိ ပြန်ကြိုးစားမည်) ---
-            max_retries = 3
+            # Retry logic for Cloudflare IP blocks
             success = False
-            for i in range(max_retries):
-                # Register
+            for i in range(3):
                 reg = subprocess.run([wgcf_path, "register", "--accept-tos"], capture_output=True, text=True, cwd=cwd)
                 if reg.returncode == 0:
-                    # Generate
                     gen = subprocess.run([wgcf_path, "generate"], capture_output=True, text=True, cwd=cwd)
                     if gen.returncode == 0:
                         success = True
                         break
-                
-                # ခေတ္တနားပြီး ပြန်ကြိုးစားခြင်း
-                print(f"Retry {i+1} due to Cloudflare error...")
                 time.sleep(2)
 
             if success and os.path.exists("wgcf-profile.conf"):
@@ -90,14 +96,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await context.bot.send_document(
                         chat_id=update.effective_chat.id,
                         document=file, 
-                        filename="WARP_MH.conf",
-                        caption="✅ Config ရပါပြီ။ WireGuard တွင် သုံးနိုင်ပါပြီ။"
+                        filename="MH_WARP.conf",
+                        caption="Configကိုဒေါင်းပြီ Wireguard တွင်အသုံးပြုနိုင်ပါပြီ။"
                     )
             else:
-                await query.message.reply_text("❌ Cloudflare Server အလုပ်များနေပါသည်။ ခဏနေမှ ပြန်စမ်းကြည့်ပါ။")
+                await query.message.reply_text("❌ Cloudflare အလုပ်များနေပါသည်။ ခဏနေမှ ပြန်စမ်းပါ။")
 
         except Exception as e:
-            await query.message.reply_text(f"❌ Error ဖြစ်သွားပါသည်: {str(e)[:50]}")
+            await query.message.reply_text(f"❌ Error: {str(e)[:50]}")
         
         finally:
             for f in files_to_clean:
@@ -106,7 +112,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 if __name__ == '__main__':
     setup_wgcf()
+    
+    # Koyeb အတွက် Health Server ကို Background Thread ဖြင့် Run ပါ
+    threading.Thread(target=run_health_server, daemon=True).start()
+    
     if TOKEN:
+        print("Bot is starting on Koyeb...")
         app = ApplicationBuilder().token(TOKEN).build()
         app.add_handler(CommandHandler("start", start))
         app.add_handler(CallbackQueryHandler(button_handler))
