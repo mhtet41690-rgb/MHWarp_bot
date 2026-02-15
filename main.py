@@ -261,7 +261,7 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ")
 
-# ================= ADMIN =================
+## ================= ADMIN =================
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
