@@ -170,43 +170,25 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     user = get_user(user_id)
 
-    # Back main
     if query.data == "back_main":
-        await query.edit_message_text(
-            "🏠 Main Menu",
-            reply_markup=main_keyboard()
-        )
+        await query.edit_message_text("🏠 Main Menu", reply_markup=main_keyboard())
         return
 
-    # VIP info
     if query.data == "vip_info":
         status = "💎 VIP" if user["vip"] else "❌ Free"
         text = f"💎 VIP Status\n\nStatus: {status}"
+        text += "\n\n✅ You are already a VIP user" if user["vip"] else f"\n\n💵 {VIP_PRICE}"
 
-        if user["vip"]:
-            text += "\n\n✅ You are already a VIP user"
-        else:
-            text += f"\n\n💵 {VIP_PRICE}"
-
-        await query.edit_message_text(
-            text,
-            reply_markup=vip_keyboard(user["vip"])
-        )
+        await query.edit_message_text(text, reply_markup=vip_keyboard(user["vip"]))
         return
 
-    # Buy now
     if query.data == "buy_now":
         if user["vip"]:
             await query.answer("💎 Already VIP", show_alert=True)
             return
-
-        await query.edit_message_text(
-            BANKING_TEXT,
-            reply_markup=payment_keyboard()
-        )
+        await query.edit_message_text(BANKING_TEXT, reply_markup=payment_keyboard())
         return
 
-    # Send payment
     if query.data == "send_payment":
         pending_payments.add(user_id)
         await query.edit_message_text(
@@ -217,13 +199,9 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Generate
     if query.data == "generate":
         if not await is_user_joined(context.bot, user_id):
-            await query.edit_message_text(
-                "⛔ Channel join လုပ်ပါ",
-                reply_markup=main_keyboard()
-            )
+            await query.edit_message_text("⛔ Channel join လုပ်ပါ", reply_markup=main_keyboard())
             return
 
         is_admin = user_id == ADMIN_ID
@@ -232,18 +210,12 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not is_admin and not user["vip"]:
             if last_ts and now - datetime.fromtimestamp(last_ts) < timedelta(days=7):
-                await query.edit_message_text(
-                    "⛔ Free user အပတ်တစ်ခါပဲရပါတယ်",
-                    reply_markup=main_keyboard()
-                )
+                await query.edit_message_text("⛔ Free user အပတ်တစ်ခါပဲရပါတယ်", reply_markup=main_keyboard())
                 return
 
         if not is_admin and user["vip"]:
             if last_ts and now - datetime.fromtimestamp(last_ts) < timedelta(days=1):
-                await query.edit_message_text(
-                    "⛔ VIP user တစ်ရက်တစ်ခါပဲရပါတယ်",
-                    reply_markup=main_keyboard()
-                )
+                await query.edit_message_text("⛔ VIP user တစ်ရက်တစ်ခါပဲရပါတယ်", reply_markup=main_keyboard())
                 return
 
         msg = await query.message.reply_text("⚙️ Generating...")
@@ -282,12 +254,10 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     photo = update.message.photo[-1]
-    caption = f"💰 VIP Payment Proof\nUser ID: {user_id}"
-
     await context.bot.send_photo(
         PAYMENT_CHANNEL_ID,
         photo.file_id,
-        caption=caption
+        caption=f"💰 VIP Payment Proof\nUser ID: {user_id}"
     )
 
     pending_payments.remove(user_id)
@@ -308,6 +278,23 @@ async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ VIP Approved: {uid}")
     try:
         await context.bot.send_message(uid, "🎉 VIP Activated!\n💎 Lifetime VIP")
+    except:
+        pass
+
+async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if not context.args:
+        await update.message.reply_text("/rejectvip USER_ID")
+        return
+
+    uid = int(context.args[0])
+    set_vip(uid, False)
+
+    await update.message.reply_text(f"❌ VIP Rejected: {uid}")
+    try:
+        await context.bot.send_message(uid, "❌ VIP Removed\n\nVIP အခွင့်အရေးကို ဖယ်ရှားလိုက်ပါပြီ")
     except:
         pass
 
@@ -332,9 +319,10 @@ if __name__ == "__main__":
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("approvevip", approvevip))
+    app.add_handler(CommandHandler("rejectvip", rejectvip))
     app.add_handler(CommandHandler("viplist", viplist))
     app.add_handler(CallbackQueryHandler(buttons))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
 
-    print("🤖 Bot running (FULL FLOW VERSION)")
+    print("🤖 Bot running (FINAL VERSION)")
     app.run_polling()
