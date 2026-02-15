@@ -30,22 +30,25 @@ WGCF_BIN = "./wgcf"
 ENDPOINT_IP = "162.159.192.1"
 ENDPOINT_PORT = 500
 
-VIP_PRICE = "One-time payment (Lifetime)"
+VIP_PRICE = "🥰 Vip Lifetime 🥰 စင်္ကာပူ၊ထိုင်း အစရှိသည့် နိုင်ငံ server များများကိုလည်း လိုင်းကောင်းကောင်းနဲ့ lifetime သုံးလို့ရသွားမှာပါ။ တသက်စာဝင်ကြေး 5000 ကျပ်။ 5ထောင်ကျပ်် 🇲🇲 file တစ်ရက်တစ်ခါ ထုတ်လို့ရမည်။"
 
 BANKING_TEXT = (
     "💳 Payment Methods\n\n"
-    "🏦 KBZ Bank\n"
-    "Name: Mg Aung Aung\n"
-    "Acc: 123-456-789\n\n"
+    "🏦 Kpay\n"
+    "Name: Win Htut Kyaw\n"
+    "Acc: 09982383696\n\n"
     "🏦 WavePay\n"
-    "Phone: 09xxxxxxxx\n\n"
-    "📸 ငွေလွှဲပြီး Screenshot ကို ဒီ bot ထဲမှာပဲ ပို့ပါ"
+    "Name: Kyaw Kyaw Naing\n"
+    "Phone: 09972752831\n\n"
+    "📸 ငွေလွှဲပြီး Screenshot ကို ဒီ bot ထဲမှာပဲ ပို့ပါ၊ ပြောစာ ပုံပဲပို့ပါရန် ❗"
 )
 
 pending_payments = set()
 
 # ================= SQLITE =================
 DB_PATH = "/data/users.db"
+os.makedirs("/data", exist_ok=True)
+
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cur = conn.cursor()
 
@@ -151,7 +154,7 @@ def vip_keyboard(is_vip=False):
 
 def payment_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📤 Send Payment Screenshot", callback_data="send_payment")],
+        [InlineKeyboardButton("📤 ငွေလွှဲပြီး ပုံပို့ရန်", callback_data="send_payment")],
         [InlineKeyboardButton("🔙 Back", callback_data="vip_info")]
     ])
 
@@ -181,7 +184,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text, reply_markup=vip_keyboard(user["vip"]))
         return
 
-    if query.data == "buy_now":
+    if query.data == "Vip ဝင်မည်":
         if user["vip"]:
             await query.answer("💎 Already VIP", show_alert=True)
             return
@@ -191,16 +194,20 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "send_payment":
         pending_payments.add(user_id)
         await query.edit_message_text(
-            "📸 Payment Screenshot ကို ဒီ chat ထဲ ပို့ပါ",
+            "📸 Payment Screenshot ကို ဒီမှာပို့ပါ",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔙 Back", callback_data="vip_info")]
             ])
         )
         return
 
+    # ================= GENERATE =================
     if query.data == "generate":
         if not await is_user_joined(context.bot, user_id):
-            await query.edit_message_text("⛔ Channel join လုပ်ပါ", reply_markup=main_keyboard())
+            await query.edit_message_text(
+                "⛔ Channel join လုပ်ပါ",
+                reply_markup=main_keyboard()
+            )
             return
 
         is_admin = user_id == ADMIN_ID
@@ -209,12 +216,18 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not is_admin and not user["vip"]:
             if last_ts and now - datetime.fromtimestamp(last_ts) < timedelta(days=7):
-                await query.edit_message_text("⛔ Free user အပတ်တစ်ခါပဲရပါတယ်", reply_markup=main_keyboard())
+                await query.edit_message_text(
+                    "⛔ Free user အပတ်တစ်ခါပဲရပါတယ်",
+                    reply_markup=main_keyboard()
+                )
                 return
 
         if not is_admin and user["vip"]:
             if last_ts and now - datetime.fromtimestamp(last_ts) < timedelta(days=1):
-                await query.edit_message_text("⛔ VIP user တစ်ရက်တစ်ခါပဲရပါတယ်", reply_markup=main_keyboard())
+                await query.edit_message_text(
+                    "⛔ VIP user တစ်ရက်တစ်ခါပဲရပါတယ်",
+                    reply_markup=main_keyboard()
+                )
                 return
 
         msg = await query.message.reply_text("⚙️ Generating...")
@@ -236,15 +249,27 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_document(open(conf, "rb"))
             await query.message.reply_photo(open(png, "rb"))
 
+            # ❌ Warning
+            await query.message.reply_text("‼️ရောင်းချခွင့် မပြုပါ‼️")
+
             set_last(user_id, now_ts())
 
             os.remove(conf)
             os.remove(png)
             await msg.delete()
 
+            # 🔁 Show menu again
+            await query.message.reply_text(
+                "Menu ကိုပြန်ရွေးနိုင်ပါတယ် 👇",
+                reply_markup=main_keyboard()
+            )
+
         except Exception as e:
             await msg.delete()
-            await query.message.reply_text(f"❌ Error: {e}")
+            await query.message.reply_text(
+                f"❌ Error: {e}",
+                reply_markup=main_keyboard()
+            )
 
 # ================= PAYMENT PHOTO =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -270,7 +295,7 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     pending_payments.remove(user_id)
-    await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ")
+    await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ။ admin ဘတ်မှစစ်ဆေးနေပါသည်။ အချိန်အနည်းငယ်မျှကြာနိုင်မည်။")
 
 # ================= ADMIN =================
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -333,5 +358,5 @@ if __name__ == "__main__":
     app.add_handler(CallbackQueryHandler(buttons))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
 
-    print("🤖 Bot running (FINAL + USERNAME)")
+    print("🤖 Bot running (FINAL)")
     app.run_polling()
