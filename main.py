@@ -73,7 +73,7 @@ def get_user(user_id):
 def set_vip(user_id, vip=True):
     cur.execute(
         "INSERT OR REPLACE INTO users VALUES (?, ?, ?)",
-        (str(user_id), 1 if vip else 0, 0)
+        (str(user_id), 1 if vip else 0, get_user(user_id)["last"])
     )
     conn.commit()
 
@@ -154,16 +154,6 @@ def vip_keyboard():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 မင်္ဂလာပါ\n\n📌 Channel join လုပ်ပြီးမှ WARP config ထုတ်နိုင်ပါတယ်",
-        reply_markup=main_keyboard()
-    )
-
-
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📖 Help\n\n"
-        "• Free → အပတ်တစ်ခါ\n"
-        "• VIP → တစ်ရက်တစ်ခါ\n"
-        "• Admin → Unlimited",
         reply_markup=main_keyboard()
     )
 
@@ -261,20 +251,17 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     photo = update.message.photo[-1]
+
     caption = (
         "💰 VIP Payment Proof\n\n"
         f"User ID: {user_id}\n"
         f"Username: @{update.message.from_user.username}"
     )
 
-    await context.bot.send_photo(
-        PAYMENT_CHANNEL_ID,
-        photo.file_id,
-        caption=caption
-    )
+    await context.bot.send_photo(PAYMENT_CHANNEL_ID, photo.file_id, caption=caption)
 
     pending_payments.remove(user_id)
-    await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ")
+    await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ\n⏳ Admin စစ်ဆေးနေပါသည်")
 
 
 # ================= ADMIN =================
@@ -286,8 +273,18 @@ async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("/approvevip USER_ID")
         return
 
-    set_vip(context.args[0], True)
-    await update.message.reply_text(f"✅ VIP Approved: {context.args[0]}")
+    user_id = int(context.args[0])
+    set_vip(user_id, True)
+
+    await update.message.reply_text(f"✅ VIP Approved: {user_id}")
+
+    try:
+        await context.bot.send_message(
+            user_id,
+            "🎉 VIP Activated!\n\n💎 သင်သည် VIP user ဖြစ်သွားပါပြီ\n⚡ တစ်ရက်တစ်ခါ WARP config ထုတ်နိုင်ပါပြီ"
+        )
+    except:
+        pass
 
 
 async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -298,8 +295,18 @@ async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("/rejectvip USER_ID")
         return
 
-    set_vip(context.args[0], False)
-    await update.message.reply_text(f"❌ VIP Rejected: {context.args[0]}")
+    user_id = int(context.args[0])
+    set_vip(user_id, False)
+
+    await update.message.reply_text(f"❌ VIP Rejected: {user_id}")
+
+    try:
+        await context.bot.send_message(
+            user_id,
+            "❌ VIP Removed\n\nသင်၏ VIP အခွင့်အရေးကို ဖယ်ရှားလိုက်ပါပြီ"
+        )
+    except:
+        pass
 
 
 async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -323,12 +330,11 @@ if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("approvevip", approvevip))
     app.add_handler(CommandHandler("rejectvip", rejectvip))
     app.add_handler(CommandHandler("viplist", viplist))
     app.add_handler(CallbackQueryHandler(buttons))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
 
-    print("🤖 Bot running (SQLite)...")
+    print("🤖 Bot running (SQLite VIP)...")
     app.run_polling()
