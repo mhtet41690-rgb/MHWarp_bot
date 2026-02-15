@@ -1,11 +1,11 @@
 import os
 import time
-import json
 import uuid
 import shutil
 import subprocess
 import requests
 import qrcode
+import sqlite3
 from datetime import datetime, timedelta
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -26,7 +26,6 @@ PAYMENT_CHANNEL_ID = int(os.getenv("PAYMENT_CHANNEL_ID", "0"))
 
 WGCF_URL = "https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_2.2.30_linux_amd64"
 WGCF_BIN = "./wgcf"
-DATA_FILE = "users.json"
 
 ENDPOINT_IP = "162.159.192.1"
 ENDPOINT_PORT = 500
@@ -47,47 +46,51 @@ pending_payments = set()
 # =========================================
 
 
-# ---------------- Utils ----------------
-def load_users():
-    if not os.path.exists(DATA_FILE):
-        return {}
-    with open(DATA_FILE, "r") as f:
-        return json.load(f)
+# ================= SQLITE =================
+conn = sqlite3.connect("users.db", check_same_thread=False)
+cur = conn.cursor()
 
-def save_users(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+cur.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT PRIMARY KEY,
+    vip INTEGER DEFAULT 0,
+    last INTEGER DEFAULT 0
+)
+""")
+conn.commit()
+
+
+def get_user(user_id):
+    cur.execute("SELECT vip, last FROM users WHERE user_id=?", (str(user_id),))
+    row = cur.fetchone()
+    if not row:
+        cur.execute("INSERT INTO users VALUES (?, 0, 0)", (str(user_id),))
+        conn.commit()
+        return {"vip": False, "last": 0}
+    return {"vip": bool(row[0]), "last": row[1]}
+
+
+def set_vip(user_id, vip=True):
+    cur.execute(
+        "INSERT OR REPLACE INTO users VALUES (?, ?, ?)",
+        (str(user_id), 1 if vip else 0, 0)
+    )
+    conn.commit()
+
+
+def set_last(user_id, ts):
+    cur.execute("UPDATE users SET last=? WHERE user_id=?", (ts, str(user_id)))
+    conn.commit()
+
+
+def get_vip_users():
+    cur.execute("SELECT user_id FROM users WHERE vip=1")
+    return [row[0] for row in cur.fetchall()]
+
 
 def now_ts():
     return int(time.time())
 
-def setup_wgcf():
-    if not os.path.exists(WGCF_BIN):
-        r = requests.get(WGCF_URL)
-        with open("wgcf", "wb") as f:
-            f.write(r.content)
-        os.chmod("wgcf", 0o755)
-
-def reset_wgcf():
-    for f in ["wgcf-account.toml", "wgcf-profile.conf"]:
-        if os.path.exists(f):
-            os.remove(f)
-
-def patch_endpoint(conf_path, ip, port):
-    lines = []
-    with open(conf_path, "r") as f:
-        for line in f:
-            if line.strip().startswith("Endpoint"):
-                line = f"Endpoint = {ip}:{port}\n"
-            lines.append(line)
-    with open(conf_path, "w") as f:
-        f.writelines(lines)
-
-def generate_qr(conf_path, out_png):
-    with open(conf_path, "r") as f:
-        data = f.read()
-    img = qrcode.make(data)
-    img.save(out_png)
 
 async def is_user_joined(bot, user_id):
     try:
@@ -97,13 +100,46 @@ async def is_user_joined(bot, user_id):
         return False
 
 
-# ---------------- UI ----------------
+# ================= WGCF =================
+def setup_wgcf():
+    if not os.path.exists(WGCF_BIN):
+        r = requests.get(WGCF_URL)
+        with open("wgcf", "wb") as f:
+            f.write(r.content)
+        os.chmod("wgcf", 0o755)
+
+
+def reset_wgcf():
+    for f in ["wgcf-account.toml", "wgcf-profile.conf"]:
+        if os.path.exists(f):
+            os.remove(f)
+
+
+def patch_endpoint(conf_path):
+    lines = []
+    with open(conf_path, "r") as f:
+        for line in f:
+            if line.strip().startswith("Endpoint"):
+                line = f"Endpoint = {ENDPOINT_IP}:{ENDPOINT_PORT}\n"
+            lines.append(line)
+    with open(conf_path, "w") as f:
+        f.writelines(lines)
+
+
+def generate_qr(conf, png):
+    with open(conf) as f:
+        img = qrcode.make(f.read())
+    img.save(png)
+
+
+# ================= UI =================
 def main_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{CHANNEL_USERNAME}")],
         [InlineKeyboardButton("⚡ Generate WARP Config", callback_data="generate")],
         [InlineKeyboardButton("💎 VIP User", callback_data="vip_info")]
     ])
+
 
 def vip_keyboard():
     return InlineKeyboardMarkup([
@@ -114,12 +150,13 @@ def vip_keyboard():
     ])
 
 
-# ---------------- Commands ----------------
+# ================= COMMANDS =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 မင်္ဂလာပါ\n\n📌 Channel join လုပ်ပြီးမှ WARP config ထုတ်နိုင်ပါတယ်",
         reply_markup=main_keyboard()
     )
+
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -131,23 +168,18 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# ---------------- Buttons ----------------
+# ================= BUTTONS =================
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    users = load_users()
     user_id = query.from_user.id
-    user = users.get(str(user_id), {})
+    user = get_user(user_id)
 
     if query.data == "vip_info":
-        is_vip = user.get("vip", False)
-        status = "💎 VIP" if is_vip else "❌ Free"
-
+        status = "💎 VIP" if user["vip"] else "❌ Free"
         await query.edit_message_text(
-            f"💎 VIP Status\n\n"
-            f"Status: {status}\n\n"
-            f"💵 {VIP_PRICE}",
+            f"💎 VIP Status\n\nStatus: {status}\n\n💵 {VIP_PRICE}",
             reply_markup=vip_keyboard()
         )
         return
@@ -179,16 +211,15 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     is_admin = user_id == ADMIN_ID
-    is_vip = user.get("vip", False)
-    last_ts = user.get("last", 0)
+    last_ts = user["last"]
     now = datetime.now()
 
-    if not is_admin and not is_vip and last_ts:
+    if not is_admin and not user["vip"] and last_ts:
         if now - datetime.fromtimestamp(last_ts) < timedelta(days=7):
             await query.edit_message_text("⛔ Free user အပတ်တစ်ခါပဲရပါတယ်")
             return
 
-    if not is_admin and is_vip and last_ts:
+    if not is_admin and user["vip"] and last_ts:
         if now - datetime.fromtimestamp(last_ts) < timedelta(days=1):
             await query.edit_message_text("⛔ VIP user တစ်ရက်တစ်ခါပဲရပါတယ်")
             return
@@ -201,22 +232,21 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True)
         subprocess.run([WGCF_BIN, "generate"], check=True)
 
-        patch_endpoint("wgcf-profile.conf", ENDPOINT_IP, ENDPOINT_PORT)
+        patch_endpoint("wgcf-profile.conf")
 
         conf = f"MHWARP_{uuid.uuid4().hex[:8]}.conf"
-        qr = conf.replace(".conf", ".png")
+        png = conf.replace(".conf", ".png")
 
         shutil.move("wgcf-profile.conf", conf)
-        generate_qr(conf, qr)
+        generate_qr(conf, png)
 
         await query.message.reply_document(open(conf, "rb"))
-        await query.message.reply_photo(open(qr, "rb"))
+        await query.message.reply_photo(open(png, "rb"))
 
-        users[str(user_id)] = user | {"last": now_ts()}
-        save_users(users)
+        set_last(user_id, now_ts())
 
         os.remove(conf)
-        os.remove(qr)
+        os.remove(png)
         await msg.delete()
 
     except Exception as e:
@@ -224,15 +254,13 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(f"❌ Error: {e}")
 
 
-# ---------------- Payment Screenshot ----------------
+# ================= PAYMENT =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-
     if user_id not in pending_payments:
         return
 
     photo = update.message.photo[-1]
-
     caption = (
         "💰 VIP Payment Proof\n\n"
         f"User ID: {user_id}\n"
@@ -246,11 +274,10 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     pending_payments.remove(user_id)
-
     await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ")
 
 
-# ---------------- Admin Commands ----------------
+# ================= ADMIN =================
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -259,17 +286,8 @@ async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("/approvevip USER_ID")
         return
 
-    uid = context.args[0]
-    users = load_users()
-    users[uid] = {"vip": True, "last": 0}
-    save_users(users)
-
-    try:
-        await context.bot.send_message(int(uid), "🎉 VIP Activated!")
-    except:
-        pass
-
-    await update.message.reply_text(f"✅ VIP Approved: {uid}")
+    set_vip(context.args[0], True)
+    await update.message.reply_text(f"✅ VIP Approved: {context.args[0]}")
 
 
 async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -280,41 +298,27 @@ async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("/rejectvip USER_ID")
         return
 
-    uid = context.args[0]
-    users = load_users()
-
-    if uid in users:
-        users[uid]["vip"] = False
-        users[uid]["last"] = 0
-        save_users(users)
-
-    try:
-        await context.bot.send_message(int(uid), "❌ VIP Removed")
-    except:
-        pass
-
-    await update.message.reply_text(f"❌ VIP Rejected: {uid}")
+    set_vip(context.args[0], False)
+    await update.message.reply_text(f"❌ VIP Rejected: {context.args[0]}")
 
 
 async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
 
-    users = load_users()
-    vips = [u for u, d in users.items() if d.get("vip")]
-
+    vips = get_vip_users()
     if not vips:
         await update.message.reply_text("📭 VIP မရှိပါ")
         return
 
     text = "💎 VIP LIST\n\n"
-    for i, u in enumerate(vips, 1):
-        text += f"{i}. `{u}`\n"
+    for i, uid in enumerate(vips, 1):
+        text += f"{i}. `{uid}`\n"
 
     await update.message.reply_text(text, parse_mode="Markdown")
 
 
-# ---------------- Main ----------------
+# ================= MAIN =================
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
 
@@ -326,5 +330,5 @@ if __name__ == "__main__":
     app.add_handler(CallbackQueryHandler(buttons))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
 
-    print("🤖 Bot running...")
+    print("🤖 Bot running (SQLite)...")
     app.run_polling()
