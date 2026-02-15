@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import requests
 import qrcode
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from telegram import (
     Update,
@@ -61,25 +61,25 @@ def reset_wgcf():
         if os.path.exists(f):
             os.remove(f)
 
-def patch_endpoint(conf_path):
+def patch_endpoint(conf):
     lines = []
-    with open(conf_path, "r") as f:
+    with open(conf, "r") as f:
         for line in f:
             if line.startswith("Endpoint"):
                 line = f"Endpoint = {ENDPOINT_IP}:{ENDPOINT_PORT}\n"
             lines.append(line)
-    with open(conf_path, "w") as f:
+    with open(conf, "w") as f:
         f.writelines(lines)
 
 def generate_qr(conf, out):
     with open(conf, "r") as f:
         data = f.read()
-    qr = qrcode.make(data)
-    qr.save(out)
+    img = qrcode.make(data)
+    img.save(out)
 
-async def is_joined(bot, user_id):
+async def is_joined(bot, uid):
     try:
-        m = await bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id)
+        m = await bot.get_chat_member(f"@{CHANNEL_USERNAME}", uid)
         return m.status in ("member", "administrator", "creator")
     except:
         return False
@@ -99,10 +99,11 @@ def main_keyboard():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Welcome\n\n"
-        "• VIP = Lifetime\n"
-        "• VIP → 1 day 1 generate\n",
+        "💎 VIP = Lifetime\n"
+        "⚡ VIP → 1 day 1 generate",
         reply_markup=main_keyboard()
     )
+
 
 # ============ Buttons ============
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -119,7 +120,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💎 VIP Status\n\n"
             "• Lifetime VIP\n"
             "• 1 day 1 generate\n"
-            "• No expiration\n",
+            "• No expiry",
             reply_markup=kb
         )
 
@@ -128,7 +129,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💳 Payment Info\n\n"
             "KBZ: 09xxxxxxx\n"
             "Wave: 09xxxxxxx\n\n"
-            "📸 ငွေလွှဲပြီး screenshot ကို ဒီ bot ထဲပို့ပါ"
+            "📸 Payment screenshot ကို ဒီ bot ထဲပို့ပါ"
         )
 
     elif q.data == "generate":
@@ -154,6 +155,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reset_wgcf()
             subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True)
             subprocess.run([WGCF_BIN, "generate"], check=True)
+
             patch_endpoint("wgcf-profile.conf")
 
             name = f"VIP_{uuid.uuid4().hex[:6]}"
@@ -187,7 +189,7 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photo = update.message.photo[-1]
 
     caption = (
-        "💳 New Payment\n\n"
+        "💳 New Payment Screenshot\n\n"
         f"👤 @{user.username}\n"
         f"🆔 {user.id}"
     )
@@ -198,10 +200,10 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         caption=caption
     )
 
-    await update.message.reply_text("✅ Payment received. Admin will approve.")
+    await update.message.reply_text("✅ Payment received. Admin will review.")
 
 
-# ============ Admin Approve ============
+# ============ Admin Approve VIP ============
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -228,6 +230,38 @@ async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ VIP approved: {uid}")
 
 
+# ============ Admin Reject VIP ============
+async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if not context.args:
+        await update.message.reply_text("Usage: /rejectvip USER_ID")
+        return
+
+    uid = context.args[0]
+    users = load_users()
+
+    if uid not in users or not users[uid].get("vip"):
+        await update.message.reply_text("❌ User is not VIP")
+        return
+
+    users[uid]["vip"] = False
+    users[uid]["vip_type"] = None
+    users[uid]["last_generate"] = None
+    save_users(users)
+
+    try:
+        await context.bot.send_message(
+            chat_id=int(uid),
+            text="❌ VIP request rejected.\nPlease contact admin."
+        )
+    except:
+        pass
+
+    await update.message.reply_text(f"🚫 VIP rejected: {uid}")
+
+
 # ============ Main ============
 if __name__ == "__main__":
     if not TOKEN:
@@ -237,6 +271,7 @@ if __name__ == "__main__":
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("approvevip", approvevip))
+    app.add_handler(CommandHandler("rejectvip", rejectvip))
     app.add_handler(CallbackQueryHandler(buttons))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
 
