@@ -44,7 +44,7 @@ BANKING_TEXT = (
 
 pending_payments = set()
 
-# ================= SQLITE (Railway Volume) =================
+# ================= SQLITE =================
 DB_PATH = "/data/users.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cur = conn.cursor()
@@ -64,7 +64,7 @@ def get_user(user_id):
     row = cur.fetchone()
     if not row:
         cur.execute(
-            "INSERT INTO users (user_id, vip, last) VALUES (?, 0, 0)",
+            "INSERT INTO users (user_id, vip, last) VALUES (?,0,0)",
             (str(user_id),)
         )
         conn.commit()
@@ -130,7 +130,7 @@ def generate_qr(conf, png):
         img = qrcode.make(f.read())
     img.save(png)
 
-# ================= UI =================
+# ================= KEYBOARDS =================
 def main_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{CHANNEL_USERNAME}")],
@@ -138,12 +138,21 @@ def main_keyboard():
         [InlineKeyboardButton("💎 VIP User", callback_data="vip_info")]
     ])
 
-def vip_keyboard():
+def vip_keyboard(is_vip=False):
+    if is_vip:
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back", callback_data="back_main")]
+        ])
+    else:
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton("💰 Buy Now", callback_data="buy_now")],
+            [InlineKeyboardButton("🔙 Back", callback_data="back_main")]
+        ])
+
+def payment_keyboard():
     return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("❌ Cancel", callback_data="cancel_vip"),
-            InlineKeyboardButton("💰 Buy Now", callback_data="buy_now")
-        ]
+        [InlineKeyboardButton("📤 Send Payment Screenshot", callback_data="send_payment")],
+        [InlineKeyboardButton("🔙 Back", callback_data="vip_info")]
     ])
 
 # ================= COMMANDS =================
@@ -153,16 +162,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_keyboard()
     )
 
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📖 Help\n\n"
-        "• Free → အပတ်တစ်ခါ\n"
-        "• VIP → တစ်ရက်တစ်ခါ\n"
-        "• Admin → Unlimited",
-        reply_markup=main_keyboard()
-    )
-
-# ================= BUTTONS =================
+# ================= BUTTON HANDLER =================
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -170,101 +170,134 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     user = get_user(user_id)
 
-    if query.data == "vip_info":
-        status = "💎 VIP" if user["vip"] else "❌ Free"
+    # Back main
+    if query.data == "back_main":
         await query.edit_message_text(
-            f"💎 VIP Status\n\nStatus: {status}\n\n💵 {VIP_PRICE}",
-            reply_markup=vip_keyboard()
+            "🏠 Main Menu",
+            reply_markup=main_keyboard()
         )
         return
 
-    if query.data == "cancel_vip":
-        await query.edit_message_text("🔙 Main Menu", reply_markup=main_keyboard())
+    # VIP info
+    if query.data == "vip_info":
+        status = "💎 VIP" if user["vip"] else "❌ Free"
+        text = f"💎 VIP Status\n\nStatus: {status}"
+
+        if user["vip"]:
+            text += "\n\n✅ You are already a VIP user"
+        else:
+            text += f"\n\n💵 {VIP_PRICE}"
+
+        await query.edit_message_text(
+            text,
+            reply_markup=vip_keyboard(user["vip"])
+        )
         return
 
+    # Buy now
     if query.data == "buy_now":
+        if user["vip"]:
+            await query.answer("💎 Already VIP", show_alert=True)
+            return
+
         await query.edit_message_text(
             BANKING_TEXT,
+            reply_markup=payment_keyboard()
+        )
+        return
+
+    # Send payment
+    if query.data == "send_payment":
+        pending_payments.add(user_id)
+        await query.edit_message_text(
+            "📸 Payment Screenshot ကို ဒီ chat ထဲ ပို့ပါ",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📤 Send Payment Screenshot", callback_data="send_payment")],
-                [InlineKeyboardButton("❌ Cancel", callback_data="cancel_vip")]
+                [InlineKeyboardButton("🔙 Back", callback_data="vip_info")]
             ])
         )
         return
 
-    if query.data == "send_payment":
-        pending_payments.add(user_id)
-        await query.edit_message_text("📸 Payment Screenshot ကို ပို့ပါ")
-        return
-
-    if query.data != "generate":
-        return
-
-    if not await is_user_joined(context.bot, user_id):
-        await query.edit_message_text("⛔ Channel join လုပ်ပါ", reply_markup=main_keyboard())
-        return
-
-    is_admin = user_id == ADMIN_ID
-    now = datetime.now()
-    last_ts = user["last"]
-
-    if not is_admin and not user["vip"]:
-        if last_ts != 0 and now - datetime.fromtimestamp(last_ts) < timedelta(days=7):
-            await query.edit_message_text("⛔ Free user အပတ်တစ်ခါပဲရပါတယ်")
+    # Generate
+    if query.data == "generate":
+        if not await is_user_joined(context.bot, user_id):
+            await query.edit_message_text(
+                "⛔ Channel join လုပ်ပါ",
+                reply_markup=main_keyboard()
+            )
             return
 
-    if not is_admin and user["vip"]:
-        if last_ts != 0 and now - datetime.fromtimestamp(last_ts) < timedelta(days=1):
-            await query.edit_message_text("⛔ VIP user တစ်ရက်တစ်ခါပဲရပါတယ်")
-            return
+        is_admin = user_id == ADMIN_ID
+        now = datetime.now()
+        last_ts = user["last"]
 
-    msg = await query.message.reply_text("⚙️ Generating...")
+        if not is_admin and not user["vip"]:
+            if last_ts and now - datetime.fromtimestamp(last_ts) < timedelta(days=7):
+                await query.edit_message_text(
+                    "⛔ Free user အပတ်တစ်ခါပဲရပါတယ်",
+                    reply_markup=main_keyboard()
+                )
+                return
 
-    try:
-        setup_wgcf()
-        reset_wgcf()
-        subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True)
-        subprocess.run([WGCF_BIN, "generate"], check=True)
+        if not is_admin and user["vip"]:
+            if last_ts and now - datetime.fromtimestamp(last_ts) < timedelta(days=1):
+                await query.edit_message_text(
+                    "⛔ VIP user တစ်ရက်တစ်ခါပဲရပါတယ်",
+                    reply_markup=main_keyboard()
+                )
+                return
 
-        patch_endpoint("wgcf-profile.conf")
+        msg = await query.message.reply_text("⚙️ Generating...")
 
-        conf = f"MHWARP_{uuid.uuid4().hex[:8]}.conf"
-        png = conf.replace(".conf", ".png")
+        try:
+            setup_wgcf()
+            reset_wgcf()
+            subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True)
+            subprocess.run([WGCF_BIN, "generate"], check=True)
 
-        shutil.move("wgcf-profile.conf", conf)
-        generate_qr(conf, png)
+            patch_endpoint("wgcf-profile.conf")
 
-        await query.message.reply_document(open(conf, "rb"))
-        await query.message.reply_photo(open(png, "rb"))
+            conf = f"MHWARP_{uuid.uuid4().hex[:8]}.conf"
+            png = conf.replace(".conf", ".png")
 
-        set_last(user_id, now_ts())
+            shutil.move("wgcf-profile.conf", conf)
+            generate_qr(conf, png)
 
-        os.remove(conf)
-        os.remove(png)
-        await msg.delete()
+            await query.message.reply_document(open(conf, "rb"))
+            await query.message.reply_photo(open(png, "rb"))
 
-    except Exception as e:
-        await msg.delete()
-        await query.message.reply_text(f"❌ Error: {e}")
+            set_last(user_id, now_ts())
 
-# ================= PAYMENT =================
+            os.remove(conf)
+            os.remove(png)
+            await msg.delete()
+
+        except Exception as e:
+            await msg.delete()
+            await query.message.reply_text(f"❌ Error: {e}")
+
+# ================= PAYMENT PHOTO =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     if user_id not in pending_payments:
         return
 
     photo = update.message.photo[-1]
-    caption = f"💰 VIP Payment Proof\n\nUser ID: {user_id}"
+    caption = f"💰 VIP Payment Proof\nUser ID: {user_id}"
 
-    await context.bot.send_photo(PAYMENT_CHANNEL_ID, photo.file_id, caption=caption)
+    await context.bot.send_photo(
+        PAYMENT_CHANNEL_ID,
+        photo.file_id,
+        caption=caption
+    )
+
     pending_payments.remove(user_id)
-
     await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ")
 
-## ================= ADMIN =================
+# ================= ADMIN =================
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
+
     if not context.args:
         await update.message.reply_text("/approvevip USER_ID")
         return
@@ -274,23 +307,7 @@ async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"✅ VIP Approved: {uid}")
     try:
-        await context.bot.send_message(uid, "🎉 VIP Activated!\n\n💎 Lifetime VIP\n⚡ တစ်ရက်တစ်ခါ generate လုပ်နိုင်ပါပြီ")
-    except:
-        pass
-
-async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    if not context.args:
-        await update.message.reply_text("/rejectvip USER_ID")
-        return
-
-    uid = int(context.args[0])
-    set_vip(uid, False)
-
-    await update.message.reply_text(f"❌ VIP Removed: {uid}")
-    try:
-        await context.bot.send_message(uid, "❌ VIP Removed\n\nVIP အခွင့်အရေးကို ဖယ်ရှားလိုက်ပါပြီ")
+        await context.bot.send_message(uid, "🎉 VIP Activated!\n💎 Lifetime VIP")
     except:
         pass
 
@@ -314,12 +331,10 @@ if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("approvevip", approvevip))
-    app.add_handler(CommandHandler("rejectvip", rejectvip))
     app.add_handler(CommandHandler("viplist", viplist))
     app.add_handler(CallbackQueryHandler(buttons))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
 
-    print("🤖 Bot running (SQLite + Railway Volume)")
+    print("🤖 Bot running (FULL FLOW VERSION)")
     app.run_polling()
