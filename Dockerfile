@@ -18,4 +18,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Bot ကို run ရန်
-CMD ["python", "main.py"]
+CMD ["python", "main.py" "data.py"]
