@@ -320,4 +320,4 @@ if __name__ == "__main__":
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))    
     
     print("🤖 Bot running...")    
-    app.run_polling() ဒီ python မှာ admin က photo reply လုက်စရာမလိုပဲ။ bot ထဲပဲ /approvevip user id လုပ်မယ်
+    app.run_polling()
