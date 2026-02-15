@@ -178,7 +178,6 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         status = "💎 VIP" if user["vip"] else "❌ Free"
         text = f"💎 VIP Status\n\nStatus: {status}"
         text += "\n\n✅ You are already a VIP user" if user["vip"] else f"\n\n💵 {VIP_PRICE}"
-
         await query.edit_message_text(text, reply_markup=vip_keyboard(user["vip"]))
         return
 
@@ -249,15 +248,25 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= PAYMENT PHOTO =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
+    user = update.message.from_user
+    user_id = user.id
+
     if user_id not in pending_payments:
         return
 
     photo = update.message.photo[-1]
+    username = f"@{user.username}" if user.username else "❌ No username"
+
+    caption = (
+        "💰 VIP Payment Proof\n\n"
+        f"👤 User ID: {user_id}\n"
+        f"🔗 Username: {username}"
+    )
+
     await context.bot.send_photo(
         PAYMENT_CHANNEL_ID,
         photo.file_id,
-        caption=f"💰 VIP Payment Proof\nUser ID: {user_id}"
+        caption=caption
     )
 
     pending_payments.remove(user_id)
@@ -324,5 +333,5 @@ if __name__ == "__main__":
     app.add_handler(CallbackQueryHandler(buttons))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
 
-    print("🤖 Bot running (FINAL VERSION)")
+    print("🤖 Bot running (FINAL + USERNAME)")
     app.run_polling()
