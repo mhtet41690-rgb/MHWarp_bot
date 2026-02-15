@@ -1,124 +1,323 @@
 import os
+import time
+import json
+import uuid
+import shutil
 import subprocess
 import requests
-import time
-import threading
-import http.server
-import socketserver
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
-from telegram.error import BadRequest
+import qrcode
+from datetime import datetime, timedelta
 
-# --- Settings ---
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+    MessageHandler,
+    filters
+)
+
+# ================= CONFIG =================
 TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_USERNAME = "@mhwarp"  # သင့် Channel Username ကို ပြောင်းပါ
-WGCF_URL = "https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_2.2.30_linux_amd64"
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
+PAYMENT_CHANNEL_ID = int(os.getenv("PAYMENT_CHANNEL_ID", "0"))
 
-# --- Koyeb Health Check Server ---
-def run_health_server():
-    """Koyeb Health Check အောင်မြင်ရန် Port 8080 (သို့မဟုတ် ပေးထားသော Port) တွင် Server ဖွင့်ခြင်း"""
-    PORT = int(os.environ.get("PORT", 8080))
-    Handler = http.server.SimpleHTTPRequestHandler
-    # အငြင်းပွားမှုမရှိစေရန် အောက်ပါအတိုင်း ဖွင့်လှစ်ပါသည်
-    with socketserver.TCPServer(("", PORT), Handler) as httpd:
-        print(f"Health Server running on port {PORT}")
-        httpd.serve_forever()
+WGCF_URL = "https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_2.2.30_linux_amd64"
+WGCF_BIN = "./wgcf"
+DATA_FILE = "users.json"
+
+ENDPOINT_IP = "162.159.192.1"
+ENDPOINT_PORT = 500
+
+VIP_PRICE = "One-time payment (Lifetime)"
+
+BANKING_TEXT = (
+    "💳 Payment Methods\n\n"
+    "🏦 KBZ Bank\n"
+    "Name: Mg Aung Aung\n"
+    "Acc: 123-456-789\n\n"
+    "🏦 WavePay\n"
+    "Phone: 09xxxxxxxx\n\n"
+    "📸 ငွေလွှဲပြီးရင် Screenshot ကို ဒီ bot ထဲမှာပဲ ပို့ပါ"
+)
+
+pending_payments = set()
+# =========================================
+
+
+# ---------------- Utils ----------------
+def load_users():
+    if not os.path.exists(DATA_FILE):
+        return {}
+    with open(DATA_FILE, "r") as f:
+        return json.load(f)
+
+def save_users(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+def now_ts():
+    return int(time.time())
 
 def setup_wgcf():
-    if not os.path.exists("wgcf"):
-        print("Downloading wgcf binary...")
-        response = requests.get(WGCF_URL)
+    if not os.path.exists(WGCF_BIN):
+        r = requests.get(WGCF_URL)
         with open("wgcf", "wb") as f:
-            f.write(response.content)
+            f.write(r.content)
         os.chmod("wgcf", 0o755)
 
-async def is_user_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+def reset_wgcf():
+    for f in ["wgcf-account.toml", "wgcf-profile.conf"]:
+        if os.path.exists(f):
+            os.remove(f)
+
+def patch_endpoint(conf_path, ip, port):
+    lines = []
+    with open(conf_path, "r") as f:
+        for line in f:
+            if line.strip().startswith("Endpoint"):
+                line = f"Endpoint = {ip}:{port}\n"
+            lines.append(line)
+    with open(conf_path, "w") as f:
+        f.writelines(lines)
+
+def generate_qr(conf_path, out_png):
+    with open(conf_path, "r") as f:
+        data = f.read()
+    img = qrcode.make(data)
+    img.save(out_png)
+
+async def is_user_joined(bot, user_id):
     try:
-        member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
-        return member.status in ['member', 'administrator', 'creator']
-    except Exception:
+        m = await bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id)
+        return m.status in ("member", "administrator", "creator")
+    except:
         return False
 
+
+# ---------------- UI ----------------
+def main_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{CHANNEL_USERNAME}")],
+        [InlineKeyboardButton("⚡ Generate WARP Config", callback_data="generate")],
+        [InlineKeyboardButton("💎 VIP User", callback_data="vip_info")]
+    ])
+
+def vip_keyboard():
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("❌ Cancel", callback_data="cancel_vip"),
+            InlineKeyboardButton("💰 Buy Now", callback_data="buy_now")
+        ]
+    ])
+
+
+# ---------------- Commands ----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("📢 Join Our Channel", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")],
-        [InlineKeyboardButton("✅ Join ပြီးပါပြီ (Generate)", callback_data="check_and_gen")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        f"WARP Config ထုတ်ယူရန် ကျွန်ုပ်တို့၏ Channel ကို အရင် Join ပေးပါ။\n\nChannel: {CHANNEL_USERNAME}",
-        reply_markup=reply_markup
+        "👋 မင်္ဂလာပါ\n\n📌 Channel join လုပ်ပြီးမှ WARP config ထုတ်နိုင်ပါတယ်",
+        reply_markup=main_keyboard()
     )
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "📖 Help\n\n"
+        "• Free → အပတ်တစ်ခါ\n"
+        "• VIP (Lifetime) → တစ်ရက်တစ်ခါ\n"
+        "• Admin → Unlimited",
+        reply_markup=main_keyboard()
+    )
+
+
+# ---------------- Buttons ----------------
+async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    if query.data == "check_and_gen":
-        joined = await is_user_member(update, context)
-        if not joined:
-            await query.message.reply_text(f"⚠️ {CHANNEL_USERNAME} ကို အရင် Join ပေးပါ။", show_alert=True)
+    users = load_users()
+    user_id = query.from_user.id
+    user = users.get(str(user_id), {})
+
+    # VIP INFO
+    if query.data == "vip_info":
+        is_vip = user.get("vip", False)
+        status = "💎 VIP (Lifetime)" if is_vip else "❌ Free User"
+
+        await query.edit_message_text(
+            f"💎 VIP Status\n\n"
+            f"👤 Status: {status}\n\n"
+            f"🎁 Benefits:\n"
+            f"• Lifetime VIP\n"
+            f"• Generate တစ်ရက်တစ်ခါ\n\n"
+            f"💵 {VIP_PRICE}",
+            reply_markup=vip_keyboard()
+        )
+        return
+
+    if query.data == "cancel_vip":
+        await query.edit_message_text("🔙 Main Menu", reply_markup=main_keyboard())
+        return
+
+    if query.data == "buy_now":
+        await query.edit_message_text(
+            BANKING_TEXT,
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📤 Send Payment Screenshot", callback_data="send_payment")],
+                [InlineKeyboardButton("❌ Cancel", callback_data="cancel_vip")]
+            ])
+        )
+        return
+
+    if query.data == "send_payment":
+        pending_payments.add(user_id)
+        await query.edit_message_text("📸 Payment Screenshot ကို ပို့ပါ (Photo only)")
+        return
+
+    # GENERATE
+    if query.data != "generate":
+        return
+
+    if not await is_user_joined(context.bot, user_id):
+        await query.edit_message_text("⛔ Channel join လုပ်ပါ", reply_markup=main_keyboard())
+        return
+
+    is_admin = user_id == ADMIN_ID
+    is_vip = user.get("vip", False)
+    last_ts = user.get("last", 0)
+    now = datetime.now()
+
+    # Free → 7 days
+    if not is_admin and not is_vip and last_ts:
+        if now - datetime.fromtimestamp(last_ts) < timedelta(days=7):
+            await query.edit_message_text(
+                "⛔ Free User က အပတ်တစ်ခါပဲရပါတယ်\n💎 VIP ဝယ်ရင် တစ်ရက်တစ်ခါရပါမယ်",
+                reply_markup=main_keyboard()
+            )
             return
 
-        status_msg = await query.message.reply_text("⏳ Cloudflare နှင့် ချိတ်ဆက်နေပါသည်...")
-        
-        cwd = os.getcwd()
-        wgcf_path = os.path.join(cwd, "wgcf")
-        files_to_clean = ["wgcf-account.json", "wgcf-profile.conf", "wgcf-identity.json"]
+    # VIP → 1 day
+    if not is_admin and is_vip and last_ts:
+        if now - datetime.fromtimestamp(last_ts) < timedelta(days=1):
+            await query.edit_message_text(
+                "⛔ VIP User က တစ်ရက်တစ်ခါပဲ Generate လုပ်လို့ရပါတယ်",
+                reply_markup=main_keyboard()
+            )
+            return
 
-        for f in files_to_clean:
-            if os.path.exists(os.path.join(cwd, f)): os.remove(os.path.join(cwd, f))
+    msg = await query.message.reply_text("⚙️ Generating...")
 
-        try:
-            setup_wgcf()
-            
-            # Retry logic for Cloudflare IP blocks
-            success = False
-            for i in range(3):
-                reg = subprocess.run([wgcf_path, "register", "--accept-tos"], capture_output=True, text=True, cwd=cwd)
-                if reg.returncode == 0:
-                    gen = subprocess.run([wgcf_path, "generate"], capture_output=True, text=True, cwd=cwd)
-                    if gen.returncode == 0:
-                        success = True
-                        break
-                time.sleep(2)
+    try:
+        setup_wgcf()
+        reset_wgcf()
 
-            if success and os.path.exists("wgcf-profile.conf"):
-                with open("wgcf-profile.conf", "r") as f:
-                    content = f.read()
-                
-                new_content = content.replace(":2408", ":500")
-                with open("wgcf-profile.conf", "w") as f:
-                    f.write(new_content)
+        subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True)
+        subprocess.run([WGCF_BIN, "generate"], check=True)
 
-                with open("wgcf-profile.conf", "rb") as file:
-                    await context.bot.send_document(
-                        chat_id=update.effective_chat.id,
-                        document=file, 
-                        filename="MH_WARP.conf",
-                        caption="Configကိုဒေါင်းပြီ Wireguard တွင်အသုံးပြုနိုင်ပါပြီ။"
-                    )
-            else:
-                await query.message.reply_text("❌ Cloudflare အလုပ်များနေပါသည်။ ခဏနေမှ ပြန်စမ်းပါ။")
+        patch_endpoint("wgcf-profile.conf", ENDPOINT_IP, ENDPOINT_PORT)
 
-        except Exception as e:
-            await query.message.reply_text(f"❌ Error: {str(e)[:50]}")
-        
-        finally:
-            for f in files_to_clean:
-                if os.path.exists(os.path.join(cwd, f)): os.remove(os.path.join(cwd, f))
-            await status_msg.delete()
+        conf = f"MHWARP_{uuid.uuid4().hex[:8]}.conf"
+        qr = conf.replace(".conf", ".png")
 
-if __name__ == '__main__':
-    setup_wgcf()
-    
-    # Koyeb အတွက် Health Server ကို Background Thread ဖြင့် Run ပါ
-    threading.Thread(target=run_health_server, daemon=True).start()
-    
-    if TOKEN:
-        print("Bot is starting on Koyeb...")
-        app = ApplicationBuilder().token(TOKEN).build()
-        app.add_handler(CommandHandler("start", start))
-        app.add_handler(CallbackQueryHandler(button_handler))
-        app.run_polling()
+        shutil.move("wgcf-profile.conf", conf)
+        generate_qr(conf, qr)
+
+        await query.message.reply_document(open(conf, "rb"))
+        await query.message.reply_photo(open(qr, "rb"))
+
+        users[str(user_id)] = user | {"last": now_ts()}
+        save_users(users)
+
+        os.remove(conf)
+        os.remove(qr)
+        await msg.delete()
+
+    except Exception as e:
+        await msg.delete()
+        await query.message.reply_text(f"❌ Error: {e}")
+
+
+# ---------------- Payment Screenshot ----------------
+async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+
+    if user_id not in pending_payments:
+        return
+
+    photo = update.message.photo[-1]
+    caption = (
+        "💰 VIP Payment Proof\n\n"
+        f"User ID: {user_id}\n"
+        f"Username: @{update.message.from_user.username}"
+    )
+
+    await context.bot.send_photo(
+        PAYMENT_CHANNEL_ID,
+        photo.file_id,
+        caption=caption
+    )
+
+    pending_payments.remove(user_id)
+
+    await update.message.reply_text(
+        "✅ Screenshot ကို Admin ဆီပို့ပြီးပါပြီ\n⏳ စစ်ဆေးပြီး VIP ဖွင့်ပေးပါမယ်"
+    )
+
+
+# ---------------- Approve VIP (Lifetime) ----------------
+async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if not update.message.reply_to_message:
+        await update.message.reply_text(
+            "❌ Payment screenshot ကို reply ပြီး /approvevip လုပ်ပါ"
+        )
+        return
+
+    caption = update.message.reply_to_message.caption or ""
+    user_id = None
+
+    for line in caption.splitlines():
+        if "User ID:" in line:
+            user_id = line.split("User ID:")[-1].strip()
+            break
+
+    if not user_id:
+        await update.message.reply_text("❌ User ID မတွေ့ပါ")
+        return
+
+    users = load_users()
+    users[user_id] = {
+        "vip": True,
+        "last": 0
+    }
+    save_users(users)
+
+    await context.bot.send_message(
+        int(user_id),
+        "🎉 VIP Activated!\n\n"
+        "💎 Lifetime VIP\n"
+        "⏳ Generate: တစ်ရက်တစ်ခါ"
+    )
+
+    await update.message.reply_text("✅ VIP Lifetime Approved")
+
+
+# ---------------- Main ----------------
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_cmd))
+    app.add_handler(CommandHandler("approvevip", approvevip))
+    app.add_handler(CallbackQueryHandler(buttons))
+    app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
+
+    print("🤖 Bot running...")
+    app.run_polling()
