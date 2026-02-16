@@ -7,12 +7,18 @@ import qrcode
 import sqlite3
 from datetime import datetime, timedelta
 
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import (
+    Update,
+    ReplyKeyboardMarkup,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     ContextTypes,
     MessageHandler,
+    CallbackQueryHandler,
     filters
 )
 
@@ -100,17 +106,6 @@ def set_vip(uid, v=True):
         cur.execute("INSERT INTO users VALUES (?,?,?)", (str(uid),1 if v else 0,0))
     conn.commit()
 
-def set_last(uid):
-    cur.execute("UPDATE users SET last=? WHERE user_id=?", (now_ts(), str(uid)))
-    conn.commit()
-
-# ================= VIP STATS =================
-def vip_stats_text(uid):
-    user = get_user(uid)
-    status = "💎 VIP" if user["vip"] else "❌ Free"
-    gen = "နေ့စဉ် ၁ ကြိမ် Generate" if user["vip"] else "၇ ရက်တစ်ကြိမ် Generate"
-    return f"📊 VIP Stats\n\n👤 Status : {status}\n⚡ Generate Limit : {gen}"
-
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 မင်္ဂလာပါ\nMenu ရွေးပါ 👇", reply_markup=MAIN_KB)
@@ -127,114 +122,82 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif text == "💎 VIP Info":
         if user["vip"]:
-            await update.message.reply_text(vip_stats_text(uid))
+            await update.message.reply_text("💎 VIP User")
             await context.bot.send_video(uid, VIP_TUTORIAL_VIDEO)
             await context.bot.send_message(uid, VIP_TUTORIAL_TEXT)
         else:
-            await update.message.reply_text(
-                vip_stats_text(uid) + "\n\n" + VIP_PRICE,
-                reply_markup=VIP_FREE_KB
-            )
+            await update.message.reply_text(VIP_PRICE, reply_markup=VIP_FREE_KB)
 
     elif text == "💰 Buy VIP":
         await update.message.reply_text(
-            "💳 Payment ပြုလုပ်ပြီး Screenshot ကို ဒီ chat ထဲပို့ပါ\n\n"
-            "📌 KBZ / Wave / Aya\n"
-            "📌 Amount: 5000 Ks\n\n"
-            "⏳ Payment စစ်ဆေးနေပါသည်",
+            "💳 Payment ပြုလုပ်ပြီး Screenshot ကို ဒီ chat ထဲပို့ပါ",
             reply_markup=VIP_BACK_KB
         )
 
     elif text == "🔙 Back":
         await update.message.reply_text("🏠 Main Menu", reply_markup=MAIN_KB)
 
-    elif text == "⚡ Generate WARP":
-        if uid != ADMIN_ID and user["last"]:
-            limit = 1 if user["vip"] else 7
-            nt = datetime.fromtimestamp(user["last"]) + timedelta(days=limit)
-            if now < nt:
-                await update.message.reply_text(
-                    f"⏳ ကျန်ချိန်: {remaining(int((nt-now).total_seconds()))}"
-                )
-                return
-
-        await update.message.reply_text("⚙️ Generating...")
-
-        try:
-            subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True)
-            subprocess.run([WGCF_BIN, "generate"], check=True)
-
-            conf = f"WARP_{uuid.uuid4().hex[:8]}.conf"
-            png = conf.replace(".conf", ".png")
-            shutil.move("wgcf-profile.conf", conf)
-
-            img = qrcode.make(open(conf).read())
-            img.save(png)
-
-            await update.message.reply_document(open(conf, "rb"))
-            await update.message.reply_photo(open(png, "rb"))
-
-            if uid != ADMIN_ID:
-                set_last(uid)
-
-            os.remove(conf)
-            os.remove(png)
-
-        except Exception as e:
-            await update.message.reply_text(f"❌ Error: {e}")
-
 # ================= PAYMENT PHOTO =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        uid = update.message.from_user.id
+    user = update.message.from_user
+    uid = user.id
+    username = f"@{user.username}" if user.username else "No username"
 
-        caption = (
-            "💰 VIP Payment Screenshot\n\n"
-            f"👤 User ID: `{uid}`\n"
-            f"👤 Name: {update.message.from_user.full_name}"
-        )
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Approve", callback_data=f"approve:{uid}"),
+            InlineKeyboardButton("❌ Reject", callback_data=f"reject:{uid}")
+        ]
+    ])
 
-        await context.bot.send_photo(
-            chat_id=PAYMENT_CHANNEL_ID,
-            photo=update.message.photo[-1].file_id,
-            caption=caption,
-            parse_mode="Markdown"
-        )
+    caption = (
+        "💰 VIP Payment Screenshot\n\n"
+        f"👤 User ID: `{uid}`\n"
+        f"👤 Name: {user.full_name}\n"
+        f"👤 Username: {username}"
+    )
 
-        await update.message.reply_text(
-            "✅ Screenshot ပို့ပြီးပါပြီ\n"
-            "⏳ Payment ကို စစ်ဆေးနေပါသည်\n"
-            "🙏 ခဏစောင့်ပါ"
-        )
+    await context.bot.send_photo(
+        chat_id=PAYMENT_CHANNEL_ID,
+        photo=update.message.photo[-1].file_id,
+        caption=caption,
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
 
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+    await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ\n⏳ စစ်ဆေးနေပါသည်")
 
-# ================= ADMIN =================
-async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+# ================= CALLBACK =================
+async def payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.from_user.id != ADMIN_ID:
+        await query.answer("Admin only", show_alert=True)
         return
-    uid = int(context.args[0])
-    set_vip(uid, True)
-    await update.message.reply_text(f"✅ VIP Approved {uid}")
-    await context.bot.send_message(uid, "🎉 VIP Activated!")
 
-async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    uid = int(context.args[0])
-    set_vip(uid, False)
-    await update.message.reply_text(f"❌ VIP Rejected {uid}")
+    action, uid = query.data.split(":")
+    uid = int(uid)
+
+    if action == "approve":
+        set_vip(uid, True)
+        await query.edit_message_caption(query.message.caption + "\n\n✅ Approved")
+
+        await context.bot.send_message(uid, "🎉 VIP Activated!")
+        await context.bot.send_video(uid, VIP_TUTORIAL_VIDEO)
+        await context.bot.send_message(uid, VIP_TUTORIAL_TEXT)
+
+    elif action == "reject":
+        set_vip(uid, False)
+        await query.edit_message_caption(query.message.caption + "\n\n❌ Rejected")
+        await context.bot.send_message(uid, "❌ VIP Request Rejected")
 
 # ================= MAIN =================
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("approvevip", approvevip))
-    app.add_handler(CommandHandler("rejectvip", rejectvip))
-
-    # ⚠️ PHOTO HANDLER MUST BE FIRST
+    app.add_handler(CallbackQueryHandler(payment_callback))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
 
