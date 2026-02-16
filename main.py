@@ -106,16 +106,19 @@ def reset_wgcf():
         if os.path.exists(f):
             os.remove(f)
             
-def patch_endpoint(conf_path, new_ip, new_port):
-    lines = []
+def patch_endpoint(conf_path):
+    new_lines = []
     with open(conf_path, "r") as f:
         for line in f:
             if line.strip().startswith("Endpoint"):
-                line = f"Endpoint = {new_ip}:{new_port}\n"
-            lines.append(line)
+                new_lines.append(
+                    f"Endpoint = {ENDPOINT_IP}:{ENDPOINT_PORT}\n"
+                )
+            else:
+                new_lines.append(line)
 
     with open(conf_path, "w") as f:
-        f.writelines(lines)
+        f.writelines(new_lines)
 
 # ================= HELPERS =================
 def now_ts():
@@ -207,51 +210,44 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚙️ Generating...")
 
         try:
-        setup_wgcf()
-        reset_wgcf()
-
-        subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True)
-        subprocess.run([WGCF_BIN, "generate"], check=True)
-
-        patch_endpoint("wgcf-profile.conf", ENDPOINT_IP, ENDPOINT_PORT)
-
-        conf_name = f"MHWARP_{uuid.uuid4().hex[:8]}.conf"
-        qr_name = conf_name.replace(".conf", ".png")
-
-        shutil.move("wgcf-profile.conf", conf_name)
-        generate_qr(conf_name, qr_name)
-
-        with open(conf_name, "rb") as f:
-            await query.message.reply_document(
-                document=f,
-                filename=conf_name,
-                caption="✅ WARP Config File"
+            subprocess.run(
+                [WGCF_BIN, "register", "--accept-tos"],
+                check=True
+            )
+            subprocess.run(
+                [WGCF_BIN, "generate"],
+                check=True
             )
 
-        with open(qr_name, "rb") as img:
-            await query.message.reply_photo(
-                photo=img,
+            # 🔧 PATCH ENDPOINT (အရေးကြီးဆုံး)
+            patch_endpoint("wgcf-profile.conf")
+
+            conf = f"WARP_{uuid.uuid4().hex[:8]}.conf"
+            png = conf.replace(".conf", ".png")
+
+            shutil.move("wgcf-profile.conf", conf)
+
+            # ✅ QR uses patched config
+            qr = qrcode.make(open(conf).read())
+            qr.save(png)
+
+            await update.message.reply_document(
+                open(conf, "rb"),
+                filename=conf
+            )
+            await update.message.reply_photo(
+                open(png, "rb"),
                 caption="📱 QR Code (WireGuard app မှာ Scan လုပ်ပါ)"
             )
 
-        users[str(user_id)] = {"last": now_ts()}
-        save_users(users)
+            if uid != ADMIN_ID:
+                set_last(uid)
 
-        await processing_msg.delete()
-        await query.message.reply_text(
-            "‼️ရောင်းချခွင့် မပြုပါ‼️",
-            reply_markup=main_keyboard()
-        )
+            os.remove(conf)
+            os.remove(png)
 
-        os.remove(conf_name)
-        os.remove(qr_name)
-
-    except Exception as e:
-        await processing_msg.delete()
-        await query.message.reply_text(
-            f"❌ Error:\n{e}",
-            reply_markup=main_keyboard()
-        )
+        except Exception as e:
+            await update.message.reply_text(f"❌ Error:\n{e}")
 
 
 # ================= PAYMENT PHOTO =================
