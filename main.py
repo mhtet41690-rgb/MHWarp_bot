@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import qrcode
 import sqlite3
+import requests
 from datetime import datetime, timedelta
 
 from telegram import Update, ReplyKeyboardMarkup
@@ -19,16 +20,16 @@ from telegram.ext import (
 # ================= CONFIG =================
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")  # example: mychannel
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
 PAYMENT_CHANNEL_ID = int(os.getenv("PAYMENT_CHANNEL_ID"))
 
 WGCF_BIN = "./wgcf"
+WGCF_URL = "https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_2.2.30_linux_amd64"
 
 VIP_PRICE = (
     "🥰 VIP Lifetime 🥰\n\n"
-    "💎 တစ်ခါဝယ်ထားယုံဖြင့် တစ်သက်စာ အသုံးပြုလို့ရသွားမှာပါ။ \n"
-    "🎉 ဒါ့အပြင် Free Generate မှ vpn key ကို ispဘတ်မှ ban ခဲ့ရင် Vip User တွေအတွတ် Key အသစ်ပေးသွားမှာပါ။ \n"
-    "💵 Price: 3000 Ks \n"
+    "💎 တစ်ခါဝယ်ထားယုံဖြင့် တစ်သက်စာ အသုံးပြုလို့ရသွားမှာပါ။\n"
+    "💵 Price: 3000 Ks\n"
     "📆 VIP → တစ်ရက်တစ်ခါ Generate"
 )
 
@@ -36,11 +37,9 @@ VIP_TUTORIAL_VIDEO = "BAACAgUAAxkBAAIB9WmS1Mwvr42_VTJgDBs_nD8DN5-lAAL0GAACIkeZVP
 
 VIP_TUTORIAL_TEXT = (
     "📘 VIP Tutorial\n\n"
-    "1️⃣ V2box App ကို Install လုပ်ပါ\n"
+    "1️⃣ V2box App Install\n"
     "2️⃣ https://mhwarp.netlify.app/mh.txt\n"
-    "3️⃣ အပေါ်ကလင့်ကို copy ယူပြီး Video ထဲကလို လုပ်ပါ။\n"
-    "4️⃣ Vip Group သို့ Join ထားပါ https://t.me/+KtgnAAUsu6hiNDBl\n\n"
-    "⚠️ VIP User များသည် နေ့စဉ် ၁ ကြိမ် Generate လုပ်နိုင်ပါသည်"
+    "3️⃣ Video အတိုင်းလုပ်ပါ"
 )
 
 # ================= KEYBOARD =================
@@ -75,6 +74,19 @@ CREATE TABLE IF NOT EXISTS users (
 """)
 conn.commit()
 
+# ================= WGCF =================
+def setup_wgcf():
+    if not os.path.exists(WGCF_BIN):
+        r = requests.get(WGCF_URL)
+        with open("wgcf", "wb") as f:
+            f.write(r.content)
+        os.chmod("wgcf", 0o755)
+
+def reset_wgcf():
+    for f in ["wgcf-account.toml", "wgcf-profile.conf"]:
+        if os.path.exists(f):
+            os.remove(f)
+
 # ================= HELPERS =================
 def now_ts():
     return int(time.time())
@@ -86,13 +98,10 @@ def remaining(sec):
     return f"{d}ရက် {h}နာရီ {m}မိနစ်"
 
 # ================= CHANNEL CHECK =================
-async def is_joined_channel(bot, user_id):
+async def is_joined_channel(bot, uid):
     try:
-        member = await bot.get_chat_member(
-            chat_id=f"@{CHANNEL_USERNAME}",
-            user_id=user_id
-        )
-        return member.status in ["member", "administrator", "creator"]
+        m = await bot.get_chat_member(f"@{CHANNEL_USERNAME}", uid)
+        return m.status in ("member", "administrator", "creator")
     except:
         return False
 
@@ -116,19 +125,17 @@ def set_last(uid):
     cur.execute("UPDATE users SET last=? WHERE user_id=?", (now_ts(), str(uid)))
     conn.commit()
 
-# ================= VIP STATS =================
 def vip_stats_text(uid):
-    user = get_user(uid)
-    status = "💎 VIP" if user["vip"] else "❌ Free"
-    gen = "နေ့စဉ် ၁ ကြိမ် Generate" if user["vip"] else "၇ ရက်တစ်ကြိမ် Generate"
-    return f"📊 VIP Stats\n\n👤 Status : {status}\n⚡ Generate Limit : {gen}"
+    u = get_user(uid)
+    return (
+        "📊 VIP Stats\n\n"
+        f"👤 Status : {'💎 VIP' if u['vip'] else '❌ Free'}\n"
+        f"⚡ Limit : {'နေ့စဉ် ၁ ကြိမ်' if u['vip'] else '၇ ရက်တစ်ကြိမ်'}"
+    )
 
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 မင်္ဂလာပါ\nMenu ရွေးပါ 👇",
-        reply_markup=MAIN_KB
-    )
+    await update.message.reply_text("👋 မင်္ဂလာပါ", reply_markup=MAIN_KB)
 
 # ================= MENU =================
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -146,55 +153,44 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_video(uid, VIP_TUTORIAL_VIDEO)
             await context.bot.send_message(uid, VIP_TUTORIAL_TEXT)
         else:
-            await update.message.reply_text(
-                vip_stats_text(uid) + "\n\n" + VIP_PRICE,
-                reply_markup=VIP_FREE_KB
-            )
+            await update.message.reply_text(vip_stats_text(uid) + "\n\n" + VIP_PRICE, reply_markup=VIP_FREE_KB)
 
     elif text == "💰 Buy VIP":
-        await update.message.reply_text(
-            "💳 ငွေပေးချေပြီးပါက Screenshot ကို ဒီ bot ထဲတွင်ပို့ပါ ‼️ပြေစာပုံ တစ်ခုသာ‼️\n\n"
-            "📌 KBZ / Wave / Aya\n"
-            "📌 Amount: 5000 Ks\n\n"
-            "⏳ Payment စစ်ဆေးနေပါသည်",
-            reply_markup=VIP_BACK_KB
-        )
+        await update.message.reply_text("💳 Screenshot ကို ဒီ bot ထဲပို့ပါ", reply_markup=VIP_BACK_KB)
 
     elif text == "🔙 Back":
         await update.message.reply_text("🏠 Main Menu", reply_markup=MAIN_KB)
 
     elif text == "⚡ Generate WARP":
 
-        # 🔒 CHANNEL JOIN REQUIRED (VIP + FREE)
-        joined = await is_joined_channel(context.bot, uid)
-        if not joined:
-            await update.message.reply_text(
-                "🚫 Channel ကို Join လုပ်ထားမှ Generate လုပ်နိုင်ပါတယ်\n\n"
-                f"👉 https://t.me/{CHANNEL_USERNAME}"
-            )
+        if not await is_joined_channel(context.bot, uid):
+            await update.message.reply_text(f"🚫 Channel Join လုပ်ပါ\nhttps://t.me/{CHANNEL_USERNAME}")
             return
 
         if uid != ADMIN_ID and user["last"]:
             limit = 1 if user["vip"] else 7
             nt = datetime.fromtimestamp(user["last"]) + timedelta(days=limit)
             if now < nt:
-                await update.message.reply_text(
-                    f"⏳ ကျန်ချိန်: {remaining(int((nt-now).total_seconds()))}"
-                )
+                await update.message.reply_text(f"⏳ ကျန်ချိန်: {remaining(int((nt-now).total_seconds()))}")
                 return
 
         await update.message.reply_text("⚙️ Generating...")
 
         try:
-            subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True)
-            subprocess.run([WGCF_BIN, "generate"], check=True)
+            setup_wgcf()
+            reset_wgcf()
+
+            subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True, timeout=30)
+            subprocess.run([WGCF_BIN, "generate"], check=True, timeout=30)
 
             conf = f"WARP_{uuid.uuid4().hex[:8]}.conf"
             png = conf.replace(".conf", ".png")
+
             shutil.move("wgcf-profile.conf", conf)
 
-            img = qrcode.make(open(conf).read())
-            img.save(png)
+            with open(conf, "r") as f:
+                img = qrcode.make(f.read())
+                img.save(png)
 
             await update.message.reply_document(open(conf, "rb"))
             await update.message.reply_photo(open(png, "rb"))
@@ -206,36 +202,17 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             os.remove(png)
 
         except Exception as e:
-            await update.message.reply_text(f"❌ Error: {e}")
+            await update.message.reply_text(f"❌ Error:\n{e}")
 
 # ================= PAYMENT PHOTO =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        user = update.message.from_user
-        uid = user.id
-        username = f"@{user.username}" if user.username else "No username"
-
-        caption = (
-            "💰 VIP Payment Screenshot\n\n"
-            f"👤 User ID: {uid}\n"
-            f"👤 Name: {user.full_name}\n"
-            f"👤 Username: {username}"
-        )
-
-        await context.bot.send_photo(
-            chat_id=PAYMENT_CHANNEL_ID,
-            photo=update.message.photo[-1].file_id,
-            caption=caption
-        )
-
-        await update.message.reply_text(
-            "✅ Screenshot ပို့ပြီးပါပြီ\n"
-            "⏳admin စစ်ဆေးနေပါသည်\n"
-            "🙏 ခဏစောင့်ပါ"
-        )
-
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+    user = update.message.from_user
+    await context.bot.send_photo(
+        PAYMENT_CHANNEL_ID,
+        update.message.photo[-1].file_id,
+        caption=f"💰 VIP Payment\nID: {user.id}\nName: {user.full_name}"
+    )
+    await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ")
 
 # ================= ADMIN =================
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -244,7 +221,7 @@ async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = int(context.args[0])
     set_vip(uid, True)
     await update.message.reply_text(f"✅ VIP Approved {uid}")
-    await context.bot.send_message(uid, "🎉 VIP Activated! Vip Info ခလုပ်နှိပ်ပြီး tutorial အတိုင်း ဆက်လုပ်ပါ။🇲🇲")
+    await context.bot.send_message(uid, "🎉 VIP Activated")
 
 async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -255,15 +232,15 @@ async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= MAIN =================
 if __name__ == "__main__":
+    setup_wgcf()
+
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("approvevip", approvevip))
     app.add_handler(CommandHandler("rejectvip", rejectvip))
-
-    # ⚠️ PHOTO HANDLER MUST BE FIRST
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
 
-    print("🤖 BOT RUNNING")
+    print("🤖 BOT RUNNING (GENERATE FIXED)")
     app.run_polling()
