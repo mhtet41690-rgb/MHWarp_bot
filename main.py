@@ -146,7 +146,7 @@ def set_last(uid):
 
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 မင်္ဂလာပါ ။ \n button ကိုနှိပ်၍ထုတ်နိုင်ပါပြီ " reply_markup=MAIN_KB)
+    await update.message.reply_text("👋 မင်္ဂလာပါ\n\nလိုင်းကောင်းတဲ့ VPN Key ထုတ်နိုင်ပါပြီ", reply_markup=MAIN_KB)
 
 # ================= MENU =================
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
