@@ -28,9 +28,11 @@ WGCF_URL = "https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_2.2.30_l
 
 VIP_PRICE = (
     "🥰 VIP Lifetime 🥰\n\n"
+    "💐စင်္ကာပူ၊ထိုင်း အစရှိသည့် server များကိုလည်း lifetime အသုံးပြုလို့ရမှာပါ။\n"
     "💎 တစ်ခါဝယ်ထားယုံဖြင့် တစ်သက်စာ အသုံးပြုလို့ရသွားမှာပါ။\n"
+    "🎊ဒါ့အပြင် Warp file ကို ispဘတ်မှ ban ခဲ့ပါက ။ Vip များအတွတ် File အသစ်ပေးသွားမှာပါ။\n"
     "💵 Price: 3000 Ks\n"
-    "📆 VIP → တစ်ရက်တစ်ခါ Generate"
+    "📆 VIP → တစ်ရက်တစ်ခါ Generate လုပ်လို့ရ"
 )
 
 VIP_TUTORIAL_VIDEO = "BAACAgUAAxkBAAIB9WmS1Mwvr42_VTJgDBs_nD8DN5-lAAL0GAACIkeZVPJRAAF0x4zJMzoE"
@@ -39,7 +41,21 @@ VIP_TUTORIAL_TEXT = (
     "📘 VIP Tutorial\n\n"
     "1️⃣ V2box App Install\n"
     "2️⃣ https://mhwarp.netlify.app/mh.txt\n"
-    "3️⃣ Video အတိုင်းလုပ်ပါ"
+    "3️⃣ Video အတိုင်းလုပ်ပါ\n"
+    "Vip Group သို့ Join ထားပါ။\n"
+    "https://t.me/+KtgnAAUsu6hiNDBl"
+)
+
+PAYMENT_INFO = (
+    "💳 Payment Banking Info\n\n"
+    "🏦 Kpay\n"
+    "👤 Name : Win Htut Kyaw\n"
+    "💳 Acc No : 09982383696\n\n"
+    "📱 Wave Money Money\n"
+    "👤 Name : Mg Kyaw Kyaw Naing\n"
+    "📱 No : 09972752831\n\n"
+    "💵 Amount : 3000 Ks\n\n"
+    "📸 ငွေပေးချေပြီးပါက Screenshot ကို ဒီ bot ထဲမှာပို့ပါ"
 )
 
 # ================= KEYBOARD =================
@@ -156,7 +172,10 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(vip_stats_text(uid) + "\n\n" + VIP_PRICE, reply_markup=VIP_FREE_KB)
 
     elif text == "💰 Buy VIP":
-        await update.message.reply_text("💳 Screenshot ကို ဒီ bot ထဲပို့ပါ", reply_markup=VIP_BACK_KB)
+    await update.message.reply_text(
+        PAYMENT_INFO,
+        reply_markup=VIP_BACK_KB
+    )
 
     elif text == "🔙 Back":
         await update.message.reply_text("🏠 Main Menu", reply_markup=MAIN_KB)
@@ -248,7 +267,73 @@ async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = int(context.args[0])
     set_vip(uid, False)
     await update.message.reply_text(f"❌ VIP Rejected {uid}")
+    
+async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
 
+    cur.execute("SELECT user_id FROM users WHERE vip=1")
+    rows = cur.fetchall()
+
+    if not rows:
+        await update.message.reply_text("❌ VIP User မရှိသေးပါ")
+        return
+
+    text = "💎 VIP USER LIST (ID & Username)\n\n"
+
+    for i, (uid,) in enumerate(rows, start=1):
+        try:
+            chat = await context.bot.get_chat(int(uid))
+            username = f"@{chat.username}" if chat.username else "❌ Not set"
+        except:
+            username = "❌ Not found"
+
+        text += f"{i}. 👤 ID: {uid}\n   👤 Username: {username}\n\n"
+
+        # Telegram message length safety
+        if len(text) > 3500:
+            await update.message.reply_text(text)
+            text = ""
+
+    if text:
+        await update.message.reply_text(text)
+
+async def vipmsg(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if not update.message.reply_to_message:
+        await update.message.reply_text(
+            "❗ အသုံးပြုပုံ:\n"
+            "ပို့ချင်တဲ့ message / photo / file ကို reply လုပ်ပြီး\n"
+            "/vipmsg လို့ရိုက်ပါ"
+        )
+        return
+
+    src = update.message.reply_to_message
+
+    cur.execute("SELECT user_id FROM users WHERE vip=1")
+    rows = cur.fetchall()
+
+    if not rows:
+        await update.message.reply_text("❌ VIP User မရှိပါ")
+        return
+
+    sent = 0
+    failed = 0
+
+    for (uid,) in rows:
+        try:
+            await src.copy(chat_id=int(uid))
+            sent += 1
+        except:
+            failed += 1
+
+    await update.message.reply_text(
+        f"✅ VIP Broadcast Done\n\n"
+        f"📤 Sent: {sent}\n"
+        f"❌ Failed: {failed}"
+    )
 # ================= MAIN =================
 if __name__ == "__main__":
     setup_wgcf()
@@ -258,6 +343,8 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("approvevip", approvevip))
     app.add_handler(CommandHandler("rejectvip", rejectvip))
+    app.add_handler(CommandHandler("viplist", viplist))
+    app.add_handler(CommandHandler("vipmsg", vipmsg))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
 
