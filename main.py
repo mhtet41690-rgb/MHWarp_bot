@@ -172,10 +172,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(vip_stats_text(uid) + "\n\n" + VIP_PRICE, reply_markup=VIP_FREE_KB)
 
     elif text == "💰 Buy VIP":
-    await update.message.reply_text(
-        PAYMENT_INFO,
-        reply_markup=VIP_BACK_KB
-    )
+        await update.message.reply_text(PAYMENT_INFO, reply_markup=VIP_BACK_KB)
 
     elif text == "🔙 Back":
         await update.message.reply_text("🏠 Main Menu", reply_markup=MAIN_KB)
