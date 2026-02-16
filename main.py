@@ -27,7 +27,7 @@ WGCF_BIN = "./wgcf"
 VIP_PRICE = (
     "🥰 VIP Lifetime 🥰\n\n"
     "💎 တစ်ခါဝယ်ထားယုံဖြင့် တစ်သက်စာ အသုံးပြုလို့ရသွားမှာပါ။ \n"
-    " ဒါ့အပြင် Free Generate မှ vpn key ကို ispဘတ်မှ ban ခဲ့ရင် Vip User တွေအတွတ် Key အသစ်ပေးသွားမှာပါ
+    "🎉 ဒါ့အပြင် Free Generate မှ vpn key ကို ispဘတ်မှ ban ခဲ့ရင် Vip User တွေအတွတ် Key အသစ်ပေးသွားမှာပါ။ \n"
     "💵 Price: 3000 Ks \n"
     "📆 VIP → တစ်ရက်တစ်ခါ Generate"
 )
