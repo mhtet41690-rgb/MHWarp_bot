@@ -215,7 +215,9 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 img.save(png)
 
             await update.message.reply_document(open(conf, "rb"))
-            await update.message.reply_photo(open(png, "rb"))
+            await update.message.reply_photo(photo=open(png, "rb"),caption="📱 QR Code (WireGuard app မှာ Scan လုပ်ပါ)")
+            
+            await update.message.reply_text("‼️ရောင်းချခွင့် မပြုပါ‼️")
 
             if uid != ADMIN_ID:
                 set_last(uid)
