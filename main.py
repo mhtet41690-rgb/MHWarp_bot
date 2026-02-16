@@ -50,10 +50,10 @@ PAYMENT_INFO = (
     "💳 Payment Banking Info\n\n"
     "🏦 Kpay\n"
     "👤 Name : Win Htut Kyaw\n"
-    "💳 Acc No : 09982383696\n\n"
+    "📱 Acc No : `09982383696`\n\n"
     "📱 Wave Money Money\n"
     "👤 Name : Mg Kyaw Kyaw Naing\n"
-    "📱 No : 09972752831\n\n"
+    "📱 No : `09972752831`\n\n"
     "💵 Amount : 3000 Ks\n\n"
     "📸 ငွေပေးချေပြီးပါက Screenshot ကို ဒီ bot ထဲမှာပို့ပါ"
 )
@@ -146,7 +146,7 @@ def vip_stats_text(uid):
     return (
         "📊 VIP Stats\n\n"
         f"👤 Status : {'💎 VIP' if u['vip'] else '❌ Free'}\n"
-        f"⚡ Limit : {'နေ့စဉ် ၁ ကြိမ်' if u['vip'] else '၇ ရက်တစ်ကြိမ်'}"
+        f"⚡ Limit : {'Gemerate နေ့စဉ် ၁ ကြိမ်' if u['vip'] else 'Generate ၇ ရက်တစ်ကြိမ်'}"
     )
 
 # ================= START =================
@@ -331,6 +331,64 @@ async def vipmsg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📤 Sent: {sent}\n"
         f"❌ Failed: {failed}"
     )
+    
+async def allmsg(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if not update.message.reply_to_message:
+        await update.message.reply_text(
+            "❗ အသုံးပြုပုံ\n"
+            "ပို့ချင်တဲ့ message / photo / video ကို reply လုပ်ပြီး\n"
+            "/allmsg လို့ရိုက်ပါ"
+        )
+        return
+
+    src = update.message.reply_to_message
+
+    cur.execute("SELECT user_id FROM users")
+    users = cur.fetchall()
+
+    sent = 0
+    failed = 0
+
+    for (uid,) in users:
+        try:
+            await src.copy(chat_id=int(uid))
+            sent += 1
+        except:
+            failed += 1
+
+    await update.message.reply_text(
+        f"📢 Broadcast Finished\n\n"
+        f"✅ Sent: {sent}\n"
+        f"❌ Failed: {failed}"
+    )
+    
+async def send_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if not update.message.reply_to_message:
+        await update.message.reply_text(
+            "❗ အသုံးပြုပုံ:\n"
+            "ပို့ချင်တဲ့ message ကို reply လုပ်ပြီး\n"
+            "/send user_id လို့ရိုက်ပါ"
+        )
+        return
+
+    if not context.args:
+        await update.message.reply_text("❗ user_id ထည့်ပါ")
+        return
+
+    uid = int(context.args[0])
+    src = update.message.reply_to_message
+
+    try:
+        await src.copy(chat_id=uid)
+        await update.message.reply_text(f"✅ {uid} ဆီပို့ပြီးပါပြီ")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Failed: {e}")
 # ================= MAIN =================
 if __name__ == "__main__":
     setup_wgcf()
@@ -342,6 +400,8 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("rejectvip", rejectvip))
     app.add_handler(CommandHandler("viplist", viplist))
     app.add_handler(CommandHandler("vipmsg", vipmsg))
+    app.add_handler(CommandHandler("allmsg", allmsg))
+    app.add_handler(CommandHandler("send", send_user))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
 
