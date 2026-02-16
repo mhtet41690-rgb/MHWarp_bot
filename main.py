@@ -106,6 +106,10 @@ def set_vip(uid, v=True):
         cur.execute("INSERT INTO users VALUES (?,?,?)", (str(uid),1 if v else 0,0))
     conn.commit()
 
+def set_last(uid):
+    cur.execute("UPDATE users SET last=? WHERE user_id=?", (now_ts(), str(uid)))
+    conn.commit()
+
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 မင်္ဂလာပါ\nMenu ရွေးပါ 👇", reply_markup=MAIN_KB)
@@ -136,6 +140,37 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif text == "🔙 Back":
         await update.message.reply_text("🏠 Main Menu", reply_markup=MAIN_KB)
+
+    elif text == "⚡ Generate WARP":
+        if uid != ADMIN_ID and user["last"]:
+            limit = 1 if user["vip"] else 7
+            nt = datetime.fromtimestamp(user["last"]) + timedelta(days=limit)
+            if now < nt:
+                await update.message.reply_text(
+                    f"⏳ ကျန်ချိန်: {remaining(int((nt-now).total_seconds()))}"
+                )
+                return
+
+        await update.message.reply_text("⚙️ Generating...")
+
+        subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True)
+        subprocess.run([WGCF_BIN, "generate"], check=True)
+
+        conf = f"WARP_{uuid.uuid4().hex[:8]}.conf"
+        png = conf.replace(".conf", ".png")
+        shutil.move("wgcf-profile.conf", conf)
+
+        img = qrcode.make(open(conf).read())
+        img.save(png)
+
+        await update.message.reply_document(open(conf, "rb"))
+        await update.message.reply_photo(open(png, "rb"))
+
+        if uid != ADMIN_ID:
+            set_last(uid)
+
+        os.remove(conf)
+        os.remove(png)
 
 # ================= PAYMENT PHOTO =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -192,11 +227,40 @@ async def payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_caption(query.message.caption + "\n\n❌ Rejected")
         await context.bot.send_message(uid, "❌ VIP Request Rejected")
 
+# ================= ADMIN COMMANDS =================
+async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    cur.execute("SELECT user_id FROM users WHERE vip=1")
+    rows = cur.fetchall()
+
+    if not rows:
+        await update.message.reply_text("📭 VIP User မရှိသေးပါ")
+        return
+
+    text = "💎 VIP USER LIST\n\n"
+    for i, r in enumerate(rows, 1):
+        text += f"{i}. `{r[0]}`\n"
+
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    uid = int(context.args[0])
+    set_vip(uid, False)
+    await update.message.reply_text(f"❌ VIP Rejected {uid}")
+    await context.bot.send_message(uid, "❌ VIP ကို Reject လုပ်လိုက်ပါပြီ")
+
 # ================= MAIN =================
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("viplist", viplist))
+    app.add_handler(CommandHandler("rejectvip", rejectvip))
     app.add_handler(CallbackQueryHandler(payment_callback))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
