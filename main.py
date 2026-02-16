@@ -8,10 +8,7 @@ import qrcode
 import sqlite3
 from datetime import datetime, timedelta
 
-from telegram import (
-    Update,
-    ReplyKeyboardMarkup
-)
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -113,9 +110,17 @@ def set_last(uid):
     cur.execute("UPDATE users SET last=? WHERE user_id=?", (now_ts(), str(uid)))
     conn.commit()
 
-def get_vip_users():
-    cur.execute("SELECT user_id FROM users WHERE vip=1")
-    return [r[0] for r in cur.fetchall()]
+# ================= VIP STATS =================
+def vip_stats_text(uid):
+    user = get_user(uid)
+    status = "💎 VIP" if user["vip"] else "❌ Free"
+    gen = "နေ့စဉ် ၁ ကြိမ် Generate" if user["vip"] else "၇ ရက်တစ်ကြိမ် Generate"
+
+    return (
+        "📊 VIP Stats\n\n"
+        f"👤 Your Status : {status}\n"
+        f"⚡ Generate Limit : {gen}\n"
+    )
 
 # ================= TELEGRAM =================
 async def is_joined(bot, uid):
@@ -164,9 +169,9 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"https://t.me/{CHANNEL_USERNAME}")
 
     elif text == "💎 VIP Info":
-        status = "💎 VIP" if user["vip"] else "❌ Free"
+        msg = vip_stats_text(uid) + "\n" + VIP_PRICE
         await update.message.reply_text(
-            f"👤 User ID: {uid}\n⭐ Status: {status}",
+            msg,
             reply_markup=VIP_BACK_KB if user["vip"] else VIP_FREE_KB
         )
 
@@ -207,10 +212,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             make_qr(conf,png)
 
             await update.message.reply_document(open(conf,"rb"))
-            await update.message.reply_photo(
-                open(png,"rb"),
-                caption="📱 QR Code (WireGuard App)"
-            )
+            await update.message.reply_photo(open(png,"rb"), caption="📱 QR Code (WireGuard App)")
 
             if uid != ADMIN_ID:
                 set_last(uid)
@@ -243,61 +245,34 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
-
     if not context.args:
         await update.message.reply_text("❗ Usage: /approve <user_id>")
         return
 
-    try:
-        uid = int(context.args[0])
-    except:
-        await update.message.reply_text("❗ Invalid user id")
-        return
-
+    uid = int(context.args[0])
     set_vip(uid, True)
     await update.message.reply_text(f"✅ Approved {uid}")
 
     try:
-        await context.bot.send_message(
-            chat_id=uid,
-            text="🎉 VIP Activated!\n\n⚡ VIP Feature များအသုံးပြုနိုင်ပါပြီ"
-        )
-    except Exception as e:
-        await update.message.reply_text(f"⚠️ User ဆီ message မပို့နိုင်ပါ: {e}")
+        await context.bot.send_message(uid, "🎉 VIP Activated!\n\n⚡ VIP Feature များအသုံးပြုနိုင်ပါပြီ")
+    except:
+        pass
 
 async def reject(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
-
     if not context.args:
         await update.message.reply_text("❗ Usage: /reject <user_id>")
         return
 
-    try:
-        uid = int(context.args[0])
-    except:
-        await update.message.reply_text("❗ Invalid user id")
-        return
-
+    uid = int(context.args[0])
     set_vip(uid, False)
     await update.message.reply_text(f"❌ Rejected {uid}")
 
     try:
-        await context.bot.send_message(
-            chat_id=uid,
-            text="❌ VIP Removed\n\nAdmin မှ VIP ကိုပယ်ဖျက်လိုက်ပါပြီ"
-        )
-    except Exception as e:
-        await update.message.reply_text(f"⚠️ User ဆီ message မပို့နိုင်ပါ: {e}")
-
-async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    v = get_vip_users()
-    await update.message.reply_text(
-        "💎 VIP LIST\n" + "\n".join(v) if v else "📭 No VIP"
-    )
+        await context.bot.send_message(uid, "❌ VIP Removed\n\nAdmin မှ VIP ကိုပယ်ဖျက်လိုက်ပါပြီ")
+    except:
+        pass
 
 # ================= MAIN =================
 if __name__ == "__main__":
@@ -306,7 +281,6 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("approve", approve))
     app.add_handler(CommandHandler("reject", reject))
-    app.add_handler(CommandHandler("viplist", viplist))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
 
