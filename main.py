@@ -8,11 +8,15 @@ import qrcode
 import sqlite3
 from datetime import datetime, timedelta
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardRemove
+)
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    CallbackQueryHandler,
     ContextTypes,
     MessageHandler,
     filters
@@ -32,19 +36,26 @@ ENDPOINT_PORT = 500
 
 VIP_PRICE = (
     "🥰 Vip Lifetime 🥰\n"
-    "💎 Server များစွာကို lifetime သုံးနိုင်\n\n"
-    "💵 တသက်စာဝင်ကြေး 5000 ကျပ်\n"
-    "📆 VIP user – တစ်ရက်တစ်ခါ file ထုတ်နိုင်"
+    "💎 Lifetime Unlimited Access\n\n"
+    "💵 5000 Ks\n"
+    "📆 VIP – 1 day 1 time"
 )
 
 BANKING_TEXT = (
     "💳 Payment Methods\n\n"
-    "🏦 Kpay\nName: Win Htut Kyaw\nAcc: 09982383696\n\n"
-    "🏦 WavePay\nName: Kyaw Kyaw Naing\nPhone: 09972752831\n\n"
-    "📸 ငွေလွှဲပြီး Screenshot ကို ဒီ bot ထဲမှာပဲ ပို့ပါ ❗"
+    "🏦 Kpay\n09982383696\n\n"
+    "🏦 WavePay\n09972752831\n\n"
+    "📸 Screenshot ကို ဒီ bot ထဲမှာပို့ပါ"
 )
 
-pending_payments = set()
+# ================= REPLY KEYBOARD =================
+MAIN_KEYBOARD = ReplyKeyboardMarkup(
+    [
+        ["⚡ Generate WARP", "💎 VIP Info"],
+        ["📢 Join Channel"]
+    ],
+    resize_keyboard=True
+)
 
 # ================= SQLITE =================
 DB_PATH = "/data/users.db"
@@ -62,40 +73,43 @@ CREATE TABLE IF NOT EXISTS users (
 """)
 conn.commit()
 
+pending_payments = set()
+
 # ================= HELPERS =================
 def now_ts():
     return int(time.time())
 
-def remaining_time(seconds):
-    d = seconds // 86400
-    h = (seconds % 86400) // 3600
-    m = (seconds % 3600) // 60
+def remaining_time(sec):
+    d = sec // 86400
+    h = (sec % 86400) // 3600
+    m = (sec % 3600) // 60
     return f"{d}ရက် {h}နာရီ {m}မိနစ်"
 
 # ================= DB =================
-def get_user(user_id):
-    cur.execute("SELECT vip, last FROM users WHERE user_id=?", (str(user_id),))
-    row = cur.fetchone()
-    if not row:
+def get_user(uid):
+    cur.execute("SELECT vip, last FROM users WHERE user_id=?", (str(uid),))
+    r = cur.fetchone()
+    if not r:
         cur.execute(
-            "INSERT INTO users (user_id, vip, last) VALUES (?,0,0)",
-            (str(user_id),)
+            "INSERT INTO users (user_id,vip,last) VALUES (?,0,0)",
+            (str(uid),)
         )
         conn.commit()
         return {"vip": False, "last": 0}
-    return {"vip": bool(row[0]), "last": row[1]}
+    return {"vip": bool(r[0]), "last": r[1]}
 
-def set_vip(user_id, vip=True):
-    cur.execute("UPDATE users SET vip=? WHERE user_id=?", (1 if vip else 0, str(user_id)))
-    if cur.rowcount == 0:
-        cur.execute(
-            "INSERT INTO users (user_id, vip, last) VALUES (?, ?, 0)",
-            (str(user_id), 1 if vip else 0)
-        )
+def set_vip(uid, vip=True):
+    cur.execute(
+        "UPDATE users SET vip=? WHERE user_id=?",
+        (1 if vip else 0, str(uid))
+    )
     conn.commit()
 
-def set_last(user_id, ts):
-    cur.execute("UPDATE users SET last=? WHERE user_id=?", (ts, str(user_id)))
+def set_last(uid):
+    cur.execute(
+        "UPDATE users SET last=? WHERE user_id=?",
+        (now_ts(), str(uid))
+    )
     conn.commit()
 
 def get_vip_users():
@@ -124,106 +138,70 @@ def reset_wgcf():
             os.remove(f)
 
 def patch_endpoint(conf):
-    lines = []
+    out = []
     with open(conf) as f:
         for line in f:
-            if line.strip().startswith("Endpoint"):
+            if line.startswith("Endpoint"):
                 line = f"Endpoint = {ENDPOINT_IP}:{ENDPOINT_PORT}\n"
-            lines.append(line)
+            out.append(line)
     with open(conf, "w") as f:
-        f.writelines(lines)
+        f.writelines(out)
 
-def generate_qr(conf, png):
+def make_qr(conf, png):
     with open(conf) as f:
         img = qrcode.make(f.read())
     img.save(png)
 
-# ================= KEYBOARDS =================
-def main_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{CHANNEL_USERNAME}")],
-        [InlineKeyboardButton("⚡ Generate WARP Config", callback_data="generate")],
-        [InlineKeyboardButton("💎 VIP User", callback_data="vip_info")]
-    ])
-
-def vip_keyboard(is_vip=False):
-    if is_vip:
-        return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="back_main")]])
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("💰 Buy Now", callback_data="buy_now")],
-        [InlineKeyboardButton("🔙 Back", callback_data="back_main")]
-    ])
-
-def payment_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📤 ငွေလွှဲပြီး ပုံပို့ရန်", callback_data="send_payment")],
-        [InlineKeyboardButton("🔙 Back", callback_data="vip_info")]
-    ])
-
-# ================= COMMAND =================
+# ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 မင်္ဂလာပါ\n\n📌 Channel join လုပ်ပြီးမှ WARP config ထုတ်နိုင်ပါတယ်",
-        reply_markup=main_keyboard()
+        "👋 မင်္ဂလာပါ\nMenu ကိုရွေးပါ 👇",
+        reply_markup=MAIN_KEYBOARD
     )
 
-# ================= BUTTONS =================
-async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    user_id = query.from_user.id
-    user = get_user(user_id)
+# ================= TEXT HANDLER =================
+async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    uid = update.message.from_user.id
+    user = get_user(uid)
     now = datetime.now()
 
-    if query.data == "back_main":
-        await query.edit_message_text("🏠 Main Menu", reply_markup=main_keyboard())
-        return
+    if text == "📢 Join Channel":
+        await update.message.reply_text(
+            f"https://t.me/{CHANNEL_USERNAME}"
+        )
 
-    if query.data == "vip_info":
+    elif text == "💎 VIP Info":
         status = "💎 VIP" if user["vip"] else "❌ Free"
-        text = f"💎 VIP Status\n\nStatus: {status}"
-        text += "\n\n✅ You are already VIP" if user["vip"] else f"\n\n{VIP_PRICE}"
-        await query.edit_message_text(text, reply_markup=vip_keyboard(user["vip"]))
-        return
+        msg = f"Status : {status}\n\n"
+        msg += "✅ You are VIP" if user["vip"] else VIP_PRICE
+        await update.message.reply_text(msg)
 
-    if query.data == "buy_now":
-        await query.edit_message_text(BANKING_TEXT, reply_markup=payment_keyboard())
-        return
-
-    if query.data == "send_payment":
-        pending_payments.add(user_id)
-        await query.edit_message_text("📸 Screenshot ကို ဒီမှာပို့ပါ")
-        return
-
-    if query.data == "generate":
-        if not await is_user_joined(context.bot, user_id):
-            await query.edit_message_text("⛔ Channel join လုပ်ပါ", reply_markup=main_keyboard())
+    elif text == "⚡ Generate WARP":
+        if not await is_user_joined(context.bot, uid):
+            await update.message.reply_text("⛔ Channel join လုပ်ပါ")
             return
 
-        last_ts = user["last"]
+        if uid != ADMIN_ID:
+            last = user["last"]
 
-        if not user["vip"] and last_ts:
-            next_time = datetime.fromtimestamp(last_ts) + timedelta(days=7)
-            if now < next_time:
-                remain = int((next_time - now).total_seconds())
-                await query.edit_message_text(
-                    f"⛔ Free user အပတ်တစ်ခါပဲရပါတယ်\n\n⏳ ကျန်ရှိချိန် : {remaining_time(remain)}",
-                    reply_markup=main_keyboard()
-                )
-                return
+            if not user["vip"] and last:
+                nt = datetime.fromtimestamp(last) + timedelta(days=7)
+                if now < nt:
+                    await update.message.reply_text(
+                        f"⛔ Free user\n⏳ {remaining_time(int((nt-now).total_seconds()))}"
+                    )
+                    return
 
-        if user["vip"] and last_ts:
-            next_time = datetime.fromtimestamp(last_ts) + timedelta(days=1)
-            if now < next_time:
-                remain = int((next_time - now).total_seconds())
-                await query.edit_message_text(
-                    f"⛔ VIP user တစ်ရက်တစ်ခါပဲရပါတယ်\n\n⏳ ကျန်ရှိချိန် : {remaining_time(remain)}",
-                    reply_markup=main_keyboard()
-                )
-                return
+            if user["vip"] and last:
+                nt = datetime.fromtimestamp(last) + timedelta(days=1)
+                if now < nt:
+                    await update.message.reply_text(
+                        f"⛔ VIP user\n⏳ {remaining_time(int((nt-now).total_seconds()))}"
+                    )
+                    return
 
-        msg = await query.message.reply_text("⚙️ Generating...")
+        await update.message.reply_text("⚙️ Generating...")
 
         try:
             setup_wgcf()
@@ -237,25 +215,26 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             png = conf.replace(".conf", ".png")
 
             shutil.move("wgcf-profile.conf", conf)
-            generate_qr(conf, png)
+            make_qr(conf, png)
 
-            await query.message.reply_document(open(conf, "rb"))
-            await query.message.reply_photo(
-                photo=open(png, "rb"),
+            await update.message.reply_document(open(conf, "rb"))
+            await update.message.reply_photo(
+                open(png, "rb"),
                 caption="📱 QR Code (WireGuard app မှာ Scan လုပ်ပါ)"
             )
 
-            set_last(user_id, now_ts())
+            if uid != ADMIN_ID:
+                set_last(uid)
 
             os.remove(conf)
             os.remove(png)
-            await msg.delete()
-
-            await query.message.reply_text("Menu ကိုပြန်ရွေးနိုင်ပါတယ် 👇", reply_markup=main_keyboard())
 
         except Exception as e:
-            await msg.delete()
-            await query.message.reply_text(f"❌ Error: {e}")
+            await update.message.reply_text(f"❌ Error: {e}")
+
+    else:
+        if update.message.photo:
+            pending_payments.add(uid)
 
 # ================= PAYMENT PHOTO =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -264,57 +243,37 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     photo = update.message.photo[-1]
-    username = update.message.from_user.username or "No username"
+    uname = update.message.from_user.username or "No username"
 
     await context.bot.send_photo(
         PAYMENT_CHANNEL_ID,
         photo.file_id,
-        caption=f"💰 VIP Payment Proof\n👤 {uid}\n@{username}"
+        caption=f"💰 VIP Payment\n👤 {uid}\n@{uname}"
     )
 
     pending_payments.remove(uid)
-    await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ။ Admin စစ်ဆေးနေပါသည်။")
+    await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ")
 
-# ================= ADMIN COMMANDS =================
+# ================= ADMIN =================
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
-    if not context.args:
-        await update.message.reply_text("/approvevip USER_ID")
-        return
     uid = int(context.args[0])
     set_vip(uid, True)
-    await update.message.reply_text(f"✅ VIP Approved: {uid}")
-    try:
-        await context.bot.send_message(uid, "🎉 VIP Activated!\n💎 Lifetime VIP")
-    except:
-        pass
+    await update.message.reply_text(f"✅ VIP Approved {uid}")
 
 async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
-    if not context.args:
-        await update.message.reply_text("/rejectvip USER_ID")
-        return
     uid = int(context.args[0])
     set_vip(uid, False)
-    await update.message.reply_text(f"❌ VIP Rejected: {uid}")
-    try:
-        await context.bot.send_message(uid, "❌ VIP Removed")
-    except:
-        pass
+    await update.message.reply_text(f"❌ VIP Rejected {uid}")
 
 async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
     vips = get_vip_users()
-    if not vips:
-        await update.message.reply_text("📭 VIP မရှိပါ")
-        return
-    text = "💎 VIP LIST\n\n"
-    for i, uid in enumerate(vips, 1):
-        text += f"{i}. `{uid}`\n"
-    await update.message.reply_text(text, parse_mode="Markdown")
+    await update.message.reply_text("💎 VIP LIST\n" + "\n".join(vips))
 
 # ================= MAIN =================
 if __name__ == "__main__":
@@ -324,8 +283,9 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("approvevip", approvevip))
     app.add_handler(CommandHandler("rejectvip", rejectvip))
     app.add_handler(CommandHandler("viplist", viplist))
-    app.add_handler(CallbackQueryHandler(buttons))
-    app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
 
-    print("🤖 Bot running (FULL ADMIN FEATURES)")
+    app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu_handler))
+
+    print("🤖 Bot running (Reply Keyboard Enabled)")
     app.run_polling()
