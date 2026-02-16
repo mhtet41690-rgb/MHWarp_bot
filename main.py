@@ -43,12 +43,20 @@ BANKING_TEXT = (
     "📸 Screenshot ကို ဒီ bot ထဲမှာပို့ပါ"
 )
 
-# ================= KEYBOARDS =================
+VIP_TUTORIAL_VIDEO = "PUT_YOUR_VIDEO_FILE_ID"
+
+VIP_TUTORIAL_TEXT = (
+    "📘 VIP Tutorial\n\n"
+    "1️⃣ WireGuard App ကို Install လုပ်ပါ\n"
+    "2️⃣ Generate WARP ကိုနှိပ်ပါ\n"
+    "3️⃣ QR Code ကို Scan လုပ်ပါ\n"
+    "4️⃣ Connect နှိပ်ပြီး အသုံးပြုပါ\n\n"
+    "⚠️ VIP User များသည် နေ့စဉ် ၁ ကြိမ် Generate လုပ်နိုင်ပါသည်"
+)
+
+# ================= KEYBOARD =================
 MAIN_KB = ReplyKeyboardMarkup(
-    [
-        ["⚡ Generate WARP", "💎 VIP Info"],
-        ["📢 Join Channel"]
-    ],
+    [["⚡ Generate WARP", "💎 VIP Info"], ["📢 Join Channel"]],
     resize_keyboard=True
 )
 
@@ -169,11 +177,15 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"https://t.me/{CHANNEL_USERNAME}")
 
     elif text == "💎 VIP Info":
-        msg = vip_stats_text(uid) + "\n" + VIP_PRICE
-        await update.message.reply_text(
-            msg,
-            reply_markup=VIP_BACK_KB if user["vip"] else VIP_FREE_KB
-        )
+        if user["vip"]:
+            await update.message.reply_text(vip_stats_text(uid))
+            await context.bot.send_video(uid, VIP_TUTORIAL_VIDEO, caption="🎬 VIP Tutorial")
+            await context.bot.send_message(uid, VIP_TUTORIAL_TEXT)
+        else:
+            await update.message.reply_text(
+                vip_stats_text(uid) + "\n" + VIP_PRICE,
+                reply_markup=VIP_FREE_KB
+            )
 
     elif text == "💰 Buy VIP":
         pending_payments.add(uid)
@@ -242,47 +254,28 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ")
 
 # ================= ADMIN =================
-async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        return
-    if not context.args:
-        await update.message.reply_text("❗ Usage: /approve <user_id>")
         return
 
     uid = int(context.args[0])
     set_vip(uid, True)
-    await update.message.reply_text(f"✅ Approved {uid}")
 
-    try:
-        await context.bot.send_message(uid, "🎉 VIP Activated!\n\n⚡ VIP Feature များအသုံးပြုနိုင်ပါပြီ")
-    except:
-        pass
+    await update.message.reply_text(f"✅ VIP Approved {uid}")
 
-async def reject(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    if not context.args:
-        await update.message.reply_text("❗ Usage: /reject <user_id>")
-        return
-
-    uid = int(context.args[0])
-    set_vip(uid, False)
-    await update.message.reply_text(f"❌ Rejected {uid}")
-
-    try:
-        await context.bot.send_message(uid, "❌ VIP Removed\n\nAdmin မှ VIP ကိုပယ်ဖျက်လိုက်ပါပြီ")
-    except:
-        pass
+    await context.bot.send_message(uid, "🎉 VIP Activated!")
+    await context.bot.send_message(uid, vip_stats_text(uid))
+    await context.bot.send_video(uid, VIP_TUTORIAL_VIDEO, caption="🎬 VIP Tutorial")
+    await context.bot.send_message(uid, VIP_TUTORIAL_TEXT)
 
 # ================= MAIN =================
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("approve", approve))
-    app.add_handler(CommandHandler("reject", reject))
+    app.add_handler(CommandHandler("approvevip", approvevip))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
 
-    print("🤖 BOT RUNNING (FULL SYSTEM)")
+    print("🤖 BOT RUNNING")
     app.run_polling()
