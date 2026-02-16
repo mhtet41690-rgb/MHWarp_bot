@@ -22,7 +22,6 @@ TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
 PAYMENT_CHANNEL_ID = int(os.getenv("PAYMENT_CHANNEL_ID"))
-LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID"))
 
 WGCF_BIN = "./wgcf"
 WGCF_URL = "https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_2.2.30_linux_amd64"
@@ -238,7 +237,7 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     caption = (
         "💰 VIP Payment Screenshot\n\n"
-        f"👤 ID: {uid}\n"
+        f"👤 ID: {user.id}\n"
         f"👤 Name: {user.full_name}\n"
         f"👤 Username: {username}"
     )
@@ -250,32 +249,6 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ\n⏳ Admin စစ်ဆေးနေပါသည်")
-
-# ================= Usersend =================
-async def forward_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    user = msg.from_user
-
-    header = (
-        "📩 User Message\n\n"
-        f"👤 ID: {user.id}\n"
-        f"👤 Name: {user.full_name}\n"
-        f"👤 Username: @{user.username}" if user.username else "❌ No username"
-    )
-
-    try:
-        if msg.text:
-            await context.bot.send_message(
-                chat_id=LOG_CHANNEL_ID,
-                text=f"{header}\n\n📝 Message:\n{msg.text}"
-            )
-        else:
-            await msg.copy(
-                chat_id=LOG_CHANNEL_ID,
-                caption=header
-            )
-    except Exception as e:
-        print("LOG ERROR:", e)
 
 # ================= ADMIN =================
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -433,9 +406,6 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("send", send_user))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
-    app.add_handler(
-    MessageHandler(filters.ALL & ~filters.COMMAND, forward_user_message)
-    )
 
     print("🤖 BOT RUNNING (ENDPOINT FIXED)")
     app.run_polling()
