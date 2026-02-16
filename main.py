@@ -26,6 +26,9 @@ PAYMENT_CHANNEL_ID = int(os.getenv("PAYMENT_CHANNEL_ID"))
 WGCF_BIN = "./wgcf"
 WGCF_URL = "https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_2.2.30_linux_amd64"
 
+ENDPOINT_IP = "162.159.192.1"
+ENDPOINT_PORT = 500
+
 VIP_PRICE = (
     "🥰 VIP Lifetime 🥰\n\n"
     "💐စင်္ကာပူ၊ထိုင်း အစရှိသည့် server များကိုလည်း lifetime အသုံးပြုလို့ရမှာပါ။\n"
@@ -102,6 +105,17 @@ def reset_wgcf():
     for f in ["wgcf-account.toml", "wgcf-profile.conf"]:
         if os.path.exists(f):
             os.remove(f)
+            
+def patch_endpoint(conf_path, new_ip, new_port):
+    lines = []
+    with open(conf_path, "r") as f:
+        for line in f:
+            if line.strip().startswith("Endpoint"):
+                line = f"Endpoint = {new_ip}:{new_port}\n"
+            lines.append(line)
+
+    with open(conf_path, "w") as f:
+        f.writelines(lines)
 
 # ================= HELPERS =================
 def now_ts():
@@ -193,32 +207,52 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚙️ Generating...")
 
         try:
-            setup_wgcf()
-            reset_wgcf()
+        setup_wgcf()
+        reset_wgcf()
 
-            subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True, timeout=30)
-            subprocess.run([WGCF_BIN, "generate"], check=True, timeout=30)
+        subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True)
+        subprocess.run([WGCF_BIN, "generate"], check=True)
 
-            conf = f"WARP_{uuid.uuid4().hex[:8]}.conf"
-            png = conf.replace(".conf", ".png")
+        patch_endpoint("wgcf-profile.conf", ENDPOINT_IP, ENDPOINT_PORT)
 
-            shutil.move("wgcf-profile.conf", conf)
+        conf_name = f"MHWARP_{uuid.uuid4().hex[:8]}.conf"
+        qr_name = conf_name.replace(".conf", ".png")
 
-            with open(conf, "r") as f:
-                img = qrcode.make(f.read())
-                img.save(png)
+        shutil.move("wgcf-profile.conf", conf_name)
+        generate_qr(conf_name, qr_name)
 
-            await update.message.reply_document(open(conf, "rb"))
-            await update.message.reply_photo(open(png, "rb"))
+        with open(conf_name, "rb") as f:
+            await query.message.reply_document(
+                document=f,
+                filename=conf_name,
+                caption="✅ WARP Config File"
+            )
 
-            if uid != ADMIN_ID:
-                set_last(uid)
+        with open(qr_name, "rb") as img:
+            await query.message.reply_photo(
+                photo=img,
+                caption="📱 QR Code (WireGuard app မှာ Scan လုပ်ပါ)"
+            )
 
-            os.remove(conf)
-            os.remove(png)
+        users[str(user_id)] = {"last": now_ts()}
+        save_users(users)
 
-        except Exception as e:
-            await update.message.reply_text(f"❌ Error:\n{e}")
+        await processing_msg.delete()
+        await query.message.reply_text(
+            "‼️ရောင်းချခွင့် မပြုပါ‼️",
+            reply_markup=main_keyboard()
+        )
+
+        os.remove(conf_name)
+        os.remove(qr_name)
+
+    except Exception as e:
+        await processing_msg.delete()
+        await query.message.reply_text(
+            f"❌ Error:\n{e}",
+            reply_markup=main_keyboard()
+        )
+
 
 # ================= PAYMENT PHOTO =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
