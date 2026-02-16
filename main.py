@@ -30,21 +30,21 @@ FIXED_ENDPOINT = "162.159.192.1:500"
 
 VIP_PRICE = (
     "🥰 VIP Lifetime 🥰\n\n"
-    "💐စင်္ကာပူ၊ထိုင်း အစရှိသည့် server များကိုလည်း lifetime အသုံးပြုလို့ရမှာပါ။\n"
-    "💎 တစ်ခါဝယ်ထားယုံဖြင့် တစ်သက်စာ အသုံးပြုလို့ရသွားမှာပါ။\n"
-    "🎊 Warp file ကို ISP ban ခဲ့ပါက VIP များအတွက် File အသစ်ပေးပါမယ်။\n"
-    "💵 Price: 3000 Ks\n"
-    "📆 VIP → တစ်ရက်တစ်ခါ Generate"
+    "💐စင်္ကာပူ၊ထိုင်း အစရှိသည့် server များကိုလည်း lifetime အသုံးပြုလို့ရသွားမှာပါ။\n\n"
+    "💎 တစ်ခါဝယ်ထားယုံဖြင့် တစ်သက်စာ အသုံးပြုလို့ရသွားမှာပါ။\n\n"
+    "🎊 Warp file ကို ISP ban ဘတ်မှခဲ့ပါက VIP များအတွက် File အသစ်ပေးပါမည်။\n\n"
+    "💵 Price: 3000 Ks Lifetime\n\n"
+    "📆 VIP → တစ်ရက်တစ်ခါ Warp Generate"
 )
 
 VIP_TUTORIAL_VIDEO = "BAACAgUAAxkBAAIB9WmS1Mwvr42_VTJgDBs_nD8DN5-lAAL0GAACIkeZVPJRAAF0x4zJMzoE"
 
 VIP_TUTORIAL_TEXT = (
     "📘 VIP Tutorial\n\n"
-    "1️⃣ V2box App Install\n"
-    "2️⃣ https://mhwarp.netlify.app/mh.txt\n"
-    "3️⃣ Video အတိုင်းလုပ်ပါ\n"
-    "Vip Group Join ထားပါ\n"
+    "1️⃣ V2box App Install လုပ်ပါ\n\n"
+    "2️⃣ ဒီsub link ကို copy ကူးပြီး https://mhwarp.netlify.app/mh.txt\n\n"
+    "3️⃣ Video အတိုင်းဆက်လုပ်ပါ\n"
+    "Vip Group Join ထားပါ\n\n"
     "https://t.me/+KtgnAAUsu6hiNDBl"
 )
 
@@ -52,12 +52,13 @@ PAYMENT_INFO = (
     "💳 Payment Info\n\n"
     "🏦 Kpay\n"
     "👤 Win Htut Kyaw\n"
-    "📱 `09982383696`\n\n"
+    "📱 09982383696\n\n"
     "🏦 Wave Money\n"
     "👤 Mg Kyaw Kyaw Naing\n"
-    "📱 `09972752831`\n\n"
+    "📱 09972752831\n\n"
     "💵 Amount : 3000 Ks\n"
-    "📸 Screenshot ကို bot ထဲပို့ပါ"
+    "📸 Screenshot ကို bot ထဲပို့ပါ\n"
+    "🖼️ ပြေစာပုံပဲ ပို့ပေးပါ ‼️"
 )
 
 # ================= KEYBOARD =================
@@ -145,7 +146,7 @@ def set_last(uid):
 
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 မင်္ဂလာပါ", reply_markup=MAIN_KB)
+    await update.message.reply_text("👋 မင်္ဂလာပါ ။ \n button ကိုနှိပ်၍ထုတ်နိုင်ပါပြီ " reply_markup=MAIN_KB)
 
 # ================= MENU =================
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
