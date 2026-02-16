@@ -35,24 +35,40 @@ ENDPOINT_IP = "162.159.192.1"
 ENDPOINT_PORT = 500
 
 VIP_PRICE = (
-    "🥰 Vip Lifetime 🥰\n"
-    "💎 Lifetime Unlimited Access\n\n"
+    "🥰 VIP Lifetime 🥰\n\n"
+    "💎 Lifetime Unlimited Access\n"
     "💵 5000 Ks\n"
-    "📆 VIP – 1 day 1 time"
+    "📆 VIP – တစ်ရက်တစ်ခါ generate"
 )
 
 BANKING_TEXT = (
     "💳 Payment Methods\n\n"
-    "🏦 Kpay\n09982383696\n\n"
-    "🏦 WavePay\n09972752831\n\n"
+    "🏦 Kpay – 09982383696\n"
+    "🏦 WavePay – 09972752831\n\n"
     "📸 Screenshot ကို ဒီ bot ထဲမှာပို့ပါ"
 )
 
-# ================= REPLY KEYBOARD =================
+# ================= KEYBOARDS =================
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
         ["⚡ Generate WARP", "💎 VIP Info"],
         ["📢 Join Channel"]
+    ],
+    resize_keyboard=True
+)
+
+VIP_KEYBOARD_FREE = ReplyKeyboardMarkup(
+    [
+        ["💰 Buy VIP"],
+        ["🔙 Back"]
+    ],
+    resize_keyboard=True
+)
+
+VIP_KEYBOARD_ACTIVE = ReplyKeyboardMarkup(
+    [
+        ["✅ VIP Activated"],
+        ["🔙 Back"]
     ],
     resize_keyboard=True
 )
@@ -112,10 +128,6 @@ def set_last(uid):
     )
     conn.commit()
 
-def get_vip_users():
-    cur.execute("SELECT user_id FROM users WHERE vip=1")
-    return [r[0] for r in cur.fetchall()]
-
 # ================= TELEGRAM =================
 async def is_user_joined(bot, user_id):
     try:
@@ -159,24 +171,43 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=MAIN_KEYBOARD
     )
 
-# ================= TEXT HANDLER =================
+# ================= MENU HANDLER =================
 async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     uid = update.message.from_user.id
     user = get_user(uid)
     now = datetime.now()
 
+    # ===== JOIN CHANNEL =====
     if text == "📢 Join Channel":
+        await update.message.reply_text(f"https://t.me/{CHANNEL_USERNAME}")
+
+    # ===== VIP INFO =====
+    elif text == "💎 VIP Info":
+        if user["vip"]:
+            await update.message.reply_text(
+                "🎉 သင်သည် VIP ဖြစ်ပြီးသားပါ 💎",
+                reply_markup=VIP_KEYBOARD_ACTIVE
+            )
+        else:
+            await update.message.reply_text(
+                VIP_PRICE,
+                reply_markup=VIP_KEYBOARD_FREE
+            )
+
+    # ===== BUY VIP =====
+    elif text == "💰 Buy VIP":
+        pending_payments.add(uid)
+        await update.message.reply_text(BANKING_TEXT)
+
+    # ===== BACK =====
+    elif text == "🔙 Back":
         await update.message.reply_text(
-            f"https://t.me/{CHANNEL_USERNAME}"
+            "🏠 Main Menu",
+            reply_markup=MAIN_KEYBOARD
         )
 
-    elif text == "💎 VIP Info":
-        status = "💎 VIP" if user["vip"] else "❌ Free"
-        msg = f"Status : {status}\n\n"
-        msg += "✅ You are VIP" if user["vip"] else VIP_PRICE
-        await update.message.reply_text(msg)
-
+    # ===== GENERATE =====
     elif text == "⚡ Generate WARP":
         if not await is_user_joined(context.bot, uid):
             await update.message.reply_text("⛔ Channel join လုပ်ပါ")
@@ -232,10 +263,6 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             await update.message.reply_text(f"❌ Error: {e}")
 
-    else:
-        if update.message.photo:
-            pending_payments.add(uid)
-
 # ================= PAYMENT PHOTO =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
@@ -254,38 +281,13 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pending_payments.remove(uid)
     await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ")
 
-# ================= ADMIN =================
-async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    uid = int(context.args[0])
-    set_vip(uid, True)
-    await update.message.reply_text(f"✅ VIP Approved {uid}")
-
-async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    uid = int(context.args[0])
-    set_vip(uid, False)
-    await update.message.reply_text(f"❌ VIP Rejected {uid}")
-
-async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    vips = get_vip_users()
-    await update.message.reply_text("💎 VIP LIST\n" + "\n".join(vips))
-
 # ================= MAIN =================
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("approvevip", approvevip))
-    app.add_handler(CommandHandler("rejectvip", rejectvip))
-    app.add_handler(CommandHandler("viplist", viplist))
-
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu_handler))
 
-    print("🤖 Bot running (Reply Keyboard Enabled)")
+    print("🤖 Bot running (VIP Keyboard Dynamic)")
     app.run_polling()
