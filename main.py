@@ -19,15 +19,15 @@ from telegram.ext import (
 # ================= CONFIG =================
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")  # example: mychannel
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
 PAYMENT_CHANNEL_ID = int(os.getenv("PAYMENT_CHANNEL_ID"))
 
 WGCF_BIN = "./wgcf"
 
 VIP_PRICE = (
     "🥰 VIP Lifetime 🥰\n\n"
-    "💎 Unlimited Server Access\n"
-    "💵 Price: 5000 Ks\n"
+    "💎 တစ်ခါဝယ်ထားယုံဖြင့် တစ်သက်စာ အသုံးပြုလို့ရပါသည်\n"
+    "💵 Price: 3000 Ks\n"
     "📆 VIP → တစ်ရက်တစ်ခါ Generate"
 )
 
@@ -35,11 +35,9 @@ VIP_TUTORIAL_VIDEO = "BAACAgUAAxkBAAIBVGmStP8VBxAIVUMR5Nbm_zMg7kiQAAJiHQACAnOJVB
 
 VIP_TUTORIAL_TEXT = (
     "📘 VIP Tutorial\n\n"
-    "1️⃣ WireGuard App ကို Install လုပ်ပါ\n"
-    "2️⃣ Generate WARP ကိုနှိပ်ပါ\n"
-    "3️⃣ QR Code ကို Scan လုပ်ပါ\n"
-    "4️⃣ Connect နှိပ်ပြီး အသုံးပြုပါ\n\n"
-    "⚠️ VIP User များသည် နေ့စဉ် ၁ ကြိမ် Generate လုပ်နိုင်ပါသည်"
+    "1️⃣ V2ray / V2Box App install\n"
+    "2️⃣ https://mhwarp.netlify.app/mh.txt\n"
+    "3️⃣ Link ကို copy ယူပြီး video အတိုင်းလုပ်ပါ"
 )
 
 # ================= KEYBOARD =================
@@ -115,13 +113,6 @@ def set_last(uid):
     cur.execute("UPDATE users SET last=? WHERE user_id=?", (now_ts(), str(uid)))
     conn.commit()
 
-# ================= VIP STATS =================
-def vip_stats_text(uid):
-    user = get_user(uid)
-    status = "💎 VIP" if user["vip"] else "❌ Free"
-    gen = "နေ့စဉ် ၁ ကြိမ် Generate" if user["vip"] else "၇ ရက်တစ်ကြိမ် Generate"
-    return f"📊 VIP Stats\n\n👤 Status : {status}\n⚡ Generate Limit : {gen}"
-
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -141,21 +132,17 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif text == "💎 VIP Info":
         if user["vip"]:
-            await update.message.reply_text(vip_stats_text(uid))
             await context.bot.send_video(uid, VIP_TUTORIAL_VIDEO)
             await context.bot.send_message(uid, VIP_TUTORIAL_TEXT)
         else:
             await update.message.reply_text(
-                vip_stats_text(uid) + "\n\n" + VIP_PRICE,
+                VIP_PRICE,
                 reply_markup=VIP_FREE_KB
             )
 
     elif text == "💰 Buy VIP":
         await update.message.reply_text(
-            "💳 Payment ပြုလုပ်ပြီး Screenshot ကို ဒီ chat ထဲပို့ပါ\n\n"
-            "📌 KBZ / Wave / Aya\n"
-            "📌 Amount: 5000 Ks\n\n"
-            "⏳ Payment စစ်ဆေးနေပါသည်",
+            "💳 Payment Screenshot ကို ပို့ပါ",
             reply_markup=VIP_BACK_KB
         )
 
@@ -164,12 +151,10 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif text == "⚡ Generate WARP":
 
-        # 🔒 CHANNEL JOIN REQUIRED (VIP + FREE)
         joined = await is_joined_channel(context.bot, uid)
         if not joined:
             await update.message.reply_text(
-                "🚫 Channel ကို Join လုပ်ထားမှ Generate လုပ်နိုင်ပါတယ်\n\n"
-                f"👉 https://t.me/{CHANNEL_USERNAME}"
+                f"🚫 Channel Join လုပ်ပါ\nhttps://t.me/{CHANNEL_USERNAME}"
             )
             return
 
@@ -209,32 +194,35 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= PAYMENT PHOTO =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        user = update.message.from_user
-        uid = user.id
-        username = f"@{user.username}" if user.username else "No username"
+    user = update.message.from_user
+    caption = (
+        "💰 VIP Payment Screenshot\n\n"
+        f"👤 User ID: {user.id}\n"
+        f"👤 Name: {user.full_name}\n"
+        f"👤 Username: @{user.username if user.username else 'None'}"
+    )
 
-        caption = (
-            "💰 VIP Payment Screenshot\n\n"
-            f"👤 User ID: {uid}\n"
-            f"👤 Name: {user.full_name}\n"
-            f"👤 Username: {username}"
-        )
+    await context.bot.send_photo(
+        chat_id=PAYMENT_CHANNEL_ID,
+        photo=update.message.photo[-1].file_id,
+        caption=caption
+    )
 
-        await context.bot.send_photo(
-            chat_id=PAYMENT_CHANNEL_ID,
-            photo=update.message.photo[-1].file_id,
-            caption=caption
-        )
+    await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ")
 
-        await update.message.reply_text(
-            "✅ Screenshot ပို့ပြီးပါပြီ\n"
-            "⏳ Payment ကို စစ်ဆေးနေပါသည်\n"
-            "🙏 ခဏစောင့်ပါ"
-        )
+# ================= VIDEO ID HANDLER =================
+async def get_video_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    video = update.message.video
+    if not video:
+        return
 
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+    text = (
+        "🎥 Video Info\n\n"
+        f"🆔 File ID:\n{video.file_id}\n\n"
+        f"🔑 Unique ID:\n{video.file_unique_id}\n\n"
+        f"⏱ Duration: {video.duration} sec"
+    )
+    await update.message.reply_text(text)
 
 # ================= ADMIN =================
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -260,8 +248,8 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("approvevip", approvevip))
     app.add_handler(CommandHandler("rejectvip", rejectvip))
 
-    # ⚠️ PHOTO HANDLER MUST BE FIRST
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
+    app.add_handler(MessageHandler(filters.VIDEO, get_video_id))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
 
     print("🤖 BOT RUNNING")
