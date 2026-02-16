@@ -19,7 +19,7 @@ from telegram.ext import (
 # ================= CONFIG =================
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")  # example: mychannel
 PAYMENT_CHANNEL_ID = int(os.getenv("PAYMENT_CHANNEL_ID"))
 
 WGCF_BIN = "./wgcf"
@@ -83,6 +83,17 @@ def remaining(sec):
     h = (sec % 86400) // 3600
     m = (sec % 3600) // 60
     return f"{d}ရက် {h}နာရီ {m}မိနစ်"
+
+# ================= CHANNEL CHECK =================
+async def is_joined_channel(bot, user_id):
+    try:
+        member = await bot.get_chat_member(
+            chat_id=f"@{CHANNEL_USERNAME}",
+            user_id=user_id
+        )
+        return member.status in ["member", "administrator", "creator"]
+    except:
+        return False
 
 # ================= DB =================
 def get_user(uid):
@@ -152,6 +163,16 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🏠 Main Menu", reply_markup=MAIN_KB)
 
     elif text == "⚡ Generate WARP":
+
+        # 🔒 CHANNEL JOIN REQUIRED (VIP + FREE)
+        joined = await is_joined_channel(context.bot, uid)
+        if not joined:
+            await update.message.reply_text(
+                "🚫 Channel ကို Join လုပ်ထားမှ Generate လုပ်နိုင်ပါတယ်\n\n"
+                f"👉 https://t.me/{CHANNEL_USERNAME}"
+            )
+            return
+
         if uid != ADMIN_ID and user["last"]:
             limit = 1 if user["vip"] else 7
             nt = datetime.fromtimestamp(user["last"]) + timedelta(days=limit)
