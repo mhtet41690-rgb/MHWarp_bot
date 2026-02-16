@@ -237,7 +237,7 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     caption = (
         "💰 VIP Payment Screenshot\n\n"
-        f"👤 ID: {uid}\n"
+        f"👤 ID: <code>{uid}</code>\n"
         f"👤 Name: {user.full_name}\n"
         f"👤 Username: {username}"
     )
