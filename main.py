@@ -32,7 +32,7 @@ VIP_PRICE = (
     "🥰 VIP Lifetime 🥰\n\n"
     "💐စင်္ကာပူ၊ထိုင်း အစရှိသည့် server များကိုလည်း lifetime အသုံးပြုလို့ရသွားမှာပါ။\n\n"
     "💎 တစ်ခါဝယ်ထားယုံဖြင့် တစ်သက်စာ အသုံးပြုလို့ရသွားမှာပါ။\n\n"
-    "🎊 Warp file ကို ISP ban ဘတ်မှခဲ့ပါက VIP များအတွက် File အသစ်ပေးပါမည်။\n\n"
+    "🎊 Warp file ကို ISP ဘတ်မှ ban ခဲ့ပါက VIP User များအတွက် File အသစ်ပေးပါမည်။\n\n"
     "💵 Price: 3000 Ks Lifetime\n\n"
     "📆 VIP → တစ်ရက်တစ်ခါ Warp Generate"
 )
@@ -257,7 +257,7 @@ async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = int(context.args[0])
     set_vip(uid, True)
     await update.message.reply_text(f"✅ VIP Approved {uid}")
-    await context.bot.send_message(uid, "🎉 VIP Activated")
+    await context.bot.send_message(uid, "🎉 VIP Activated\n\n Vip Info နှိပ်ပြီး tutorial အတိုင်းဆက်လုက်ပါ")
 
 async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
