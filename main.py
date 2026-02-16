@@ -215,8 +215,7 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💰 VIP Payment Screenshot\n\n"
             f"👤 User ID: {uid}\n"
             f"👤 Name: {user.full_name}\n"
-            f"👤 Username: {username}\n"
-            f"🔗 Profile: {profile_link}"
+            f"👤 Username: {username}"
         )
 
         await context.bot.send_photo(
