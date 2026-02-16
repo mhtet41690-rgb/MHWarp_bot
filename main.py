@@ -206,13 +206,33 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= PAYMENT PHOTO =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
-    await context.bot.send_photo(
-        PAYMENT_CHANNEL_ID,
-        update.message.photo[-1].file_id,
-        caption=f"💰 VIP Payment\nID: {user.id}\nName: {user.full_name}"
-    )
-    await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ")
+    try:
+        user = update.message.from_user
+        uid = user.id
+        username = f"@{user.username}" if user.username else "No username"
+
+        caption = (
+            "💰 VIP Payment Screenshot\n\n"
+            f"👤 User ID: {uid}\n"
+            f"👤 Name: {user.full_name}\n"
+            f"👤 Username: {username}\n"
+            f"🔗 Profile: {profile_link}"
+        )
+
+        await context.bot.send_photo(
+            chat_id=PAYMENT_CHANNEL_ID,
+            photo=update.message.photo[-1].file_id,
+            caption=caption
+        )
+
+        await update.message.reply_text(
+            "✅ Screenshot ပို့ပြီးပါပြီ\n"
+            "⏳admin စစ်ဆေးနေပါသည်\n"
+            "🙏 ခဏစောင့်ပါ"
+        )
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
 
 # ================= ADMIN =================
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
