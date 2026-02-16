@@ -3,7 +3,6 @@ import time
 import uuid
 import shutil
 import subprocess
-import requests
 import qrcode
 import sqlite3
 from datetime import datetime, timedelta
@@ -25,9 +24,6 @@ CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
 WGCF_URL = "https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_2.2.30_linux_amd64"
 WGCF_BIN = "./wgcf"
 
-ENDPOINT_IP = "162.159.192.1"
-ENDPOINT_PORT = 500
-
 VIP_PRICE = (
     "🥰 VIP Lifetime 🥰\n\n"
     "💎 Unlimited Server Access\n"
@@ -35,7 +31,6 @@ VIP_PRICE = (
     "📆 VIP → တစ်ရက်တစ်ခါ Generate"
 )
 
-# 🔴 PUT REAL FILE_ID HERE AFTER GETTING IT
 VIP_TUTORIAL_VIDEO = "BAACAgUAAxkBAAIBVGmStP8VBxAIVUMR5Nbm_zMg7kiQAAJiHQACAnOJVBqp01m3JfeDOgQ"
 
 VIP_TUTORIAL_TEXT = (
@@ -117,16 +112,9 @@ def vip_stats_text(uid):
 
     return (
         "📊 VIP Stats\n\n"
-        f"👤 Your Status : {status}\n"
+        f"👤 Status : {status}\n"
         f"⚡ Generate Limit : {gen}\n"
     )
-
-# ================= GET VIDEO FILE ID =================
-async def get_video_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.video:
-        await update.message.reply_text(
-            f"🎬 VIDEO FILE_ID 👇\n\n{update.message.video.file_id}"
-        )
 
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -172,11 +160,11 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             subprocess.run([WGCF_BIN,"register","--accept-tos"],check=True)
             subprocess.run([WGCF_BIN,"generate"],check=True)
 
-            conf=f"WARP_{uuid.uuid4().hex[:8]}.conf"
-            png=conf.replace(".conf",".png")
-            shutil.move("wgcf-profile.conf",conf)
+            conf = f"WARP_{uuid.uuid4().hex[:8]}.conf"
+            png = conf.replace(".conf",".png")
+            shutil.move("wgcf-profile.conf", conf)
 
-            img=qrcode.make(open(conf).read())
+            img = qrcode.make(open(conf).read())
             img.save(png)
 
             await update.message.reply_document(open(conf,"rb"))
@@ -191,11 +179,10 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             await update.message.reply_text(f"❌ Error: {e}")
 
-# ================= ADMIN APPROVE =================
+# ================= ADMIN COMMANDS =================
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
-
     if not context.args:
         await update.message.reply_text("Usage: /approvevip user_id")
         return
@@ -204,11 +191,40 @@ async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     set_vip(uid, True)
 
     await update.message.reply_text(f"✅ VIP Approved {uid}")
-
     await context.bot.send_message(uid, "🎉 VIP Activated!")
     await context.bot.send_message(uid, vip_stats_text(uid))
     await context.bot.send_video(uid, VIP_TUTORIAL_VIDEO, caption="🎬 VIP Tutorial")
     await context.bot.send_message(uid, VIP_TUTORIAL_TEXT)
+
+async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    if not context.args:
+        await update.message.reply_text("Usage: /rejectvip user_id")
+        return
+
+    uid = int(context.args[0])
+    set_vip(uid, False)
+
+    await update.message.reply_text(f"❌ VIP Rejected {uid}")
+    await context.bot.send_message(uid, "❌ VIP Status ကို ပယ်ဖျက်လိုက်ပါပြီ")
+
+async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    cur.execute("SELECT user_id FROM users WHERE vip=1")
+    rows = cur.fetchall()
+
+    if not rows:
+        await update.message.reply_text("💤 VIP User မရှိသေးပါ")
+        return
+
+    text = "💎 VIP User List\n\n"
+    for i, r in enumerate(rows, start=1):
+        text += f"{i}. `{r[0]}`\n"
+
+    await update.message.reply_text(text, parse_mode="Markdown")
 
 # ================= MAIN =================
 if __name__ == "__main__":
@@ -216,9 +232,8 @@ if __name__ == "__main__":
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("approvevip", approvevip))
-
-    # ⚠️ MUST BE ABOVE TEXT HANDLER
-    app.add_handler(MessageHandler(filters.VIDEO, get_video_id))
+    app.add_handler(CommandHandler("rejectvip", rejectvip))
+    app.add_handler(CommandHandler("viplist", viplist))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
 
