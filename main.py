@@ -89,7 +89,7 @@ def get_user(uid):
     cur.execute("SELECT vip,last FROM users WHERE user_id=?", (str(uid),))
     r = cur.fetchone()
     if not r:
-        cur.execute("INSERT INTO users VALUES (?,?,?)", (str(uid),0,0))
+        cur.execute("INSERT INTO users VALUES (?,?,?)", (str(uid), 0, 0))
         conn.commit()
         return {"vip": False, "last": 0}
     return {"vip": bool(r[0]), "last": r[1]}
@@ -97,7 +97,7 @@ def get_user(uid):
 def set_vip(uid, v=True):
     cur.execute("UPDATE users SET vip=? WHERE user_id=?", (1 if v else 0, str(uid)))
     if cur.rowcount == 0:
-        cur.execute("INSERT INTO users VALUES (?,?,?)", (str(uid),1 if v else 0,0))
+        cur.execute("INSERT INTO users VALUES (?,?,?)", (str(uid), 1 if v else 0, 0))
     conn.commit()
 
 def set_last(uid):
@@ -113,7 +113,10 @@ def vip_stats_text(uid):
 
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 မင်္ဂလာပါ\nMenu ရွေးပါ 👇", reply_markup=MAIN_KB)
+    await update.message.reply_text(
+        "👋 မင်္ဂလာပါ\nMenu ရွေးပါ 👇",
+        reply_markup=MAIN_KB
+    )
 
 # ================= MENU =================
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -192,9 +195,9 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         caption = (
             "💰 VIP Payment Screenshot\n\n"
-            f"👤 User ID : `{uid}`\n"
-            f"👤 Name : {user.full_name}\n"
-            f"👤 Username : {username}"
+            f"👤 User ID: `{uid}`\n"
+            f"👤 Name: {user.full_name}\n"
+            f"👤 Username: {username}"
         )
 
         await context.bot.send_photo(
