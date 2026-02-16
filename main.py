@@ -195,7 +195,7 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         caption = (
             "💰 VIP Payment Screenshot\n\n"
-            f"👤 User ID: `{uid}`\n"
+            f"👤 User ID: {uid}\n"
             f"👤 Name: {user.full_name}\n"
             f"👤 Username: {username}"
         )
@@ -203,8 +203,7 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_photo(
             chat_id=PAYMENT_CHANNEL_ID,
             photo=update.message.photo[-1].file_id,
-            caption=caption,
-            parse_mode="Markdown"
+            caption=caption
         )
 
         await update.message.reply_text(
