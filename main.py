@@ -128,7 +128,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "💎 VIP Info":
         if user["vip"]:
             await update.message.reply_text(vip_stats_text(uid))
-            await context.bot.send_video(uid, VIP_TUTORIAL_VIDEO, caption="🎬 VIP Tutorial")
+            await context.bot.send_video(uid, VIP_TUTORIAL_VIDEO)
             await context.bot.send_message(uid, VIP_TUTORIAL_TEXT)
         else:
             await update.message.reply_text(
@@ -141,7 +141,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💳 Payment ပြုလုပ်ပြီး Screenshot ကို ဒီ chat ထဲပို့ပါ\n\n"
             "📌 KBZ / Wave / Aya\n"
             "📌 Amount: 5000 Ks\n\n"
-            "⏳ Admin approve ကို စောင့်ပါ",
+            "⏳ Payment စစ်ဆေးနေပါသည်",
             reply_markup=VIP_BACK_KB
         )
 
@@ -185,27 +185,30 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= PAYMENT PHOTO =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.message.from_user.id
-    user = get_user(uid)
+    try:
+        uid = update.message.from_user.id
 
-    if user["vip"]:
-        await update.message.reply_text("✅ သင် VIP ဖြစ်ပြီးသားပါ")
-        return
+        caption = (
+            "💰 VIP Payment Screenshot\n\n"
+            f"👤 User ID: `{uid}`\n"
+            f"👤 Name: {update.message.from_user.full_name}"
+        )
 
-    caption = (
-        "💰 VIP Payment Screenshot\n\n"
-        f"👤 User ID: `{uid}`\n"
-        f"👤 Username: @{update.message.from_user.username}"
-    )
+        await context.bot.send_photo(
+            chat_id=PAYMENT_CHANNEL_ID,
+            photo=update.message.photo[-1].file_id,
+            caption=caption,
+            parse_mode="Markdown"
+        )
 
-    await context.bot.send_photo(
-        chat_id=PAYMENT_CHANNEL_ID,
-        photo=update.message.photo[-1].file_id,
-        caption=caption,
-        parse_mode="Markdown"
-    )
+        await update.message.reply_text(
+            "✅ Screenshot ပို့ပြီးပါပြီ\n"
+            "⏳ Payment ကို စစ်ဆေးနေပါသည်\n"
+            "🙏 ခဏစောင့်ပါ"
+        )
 
-    await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ\n⏳ Admin approval ကို စောင့်ပါ")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
 
 # ================= ADMIN =================
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -213,12 +216,8 @@ async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     uid = int(context.args[0])
     set_vip(uid, True)
-
     await update.message.reply_text(f"✅ VIP Approved {uid}")
     await context.bot.send_message(uid, "🎉 VIP Activated!")
-    await context.bot.send_message(uid, vip_stats_text(uid))
-    await context.bot.send_video(uid, VIP_TUTORIAL_VIDEO)
-    await context.bot.send_message(uid, VIP_TUTORIAL_TEXT)
 
 async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -226,20 +225,6 @@ async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = int(context.args[0])
     set_vip(uid, False)
     await update.message.reply_text(f"❌ VIP Rejected {uid}")
-    await context.bot.send_message(uid, "❌ VIP ကို ပယ်ဖျက်လိုက်ပါပြီ")
-
-async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    cur.execute("SELECT user_id FROM users WHERE vip=1")
-    rows = cur.fetchall()
-    if not rows:
-        await update.message.reply_text("💤 VIP User မရှိသေးပါ")
-        return
-    text = "💎 VIP User List\n\n"
-    for i, r in enumerate(rows, 1):
-        text += f"{i}. `{r[0]}`\n"
-    await update.message.reply_text(text, parse_mode="Markdown")
 
 # ================= MAIN =================
 if __name__ == "__main__":
@@ -248,8 +233,8 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("approvevip", approvevip))
     app.add_handler(CommandHandler("rejectvip", rejectvip))
-    app.add_handler(CommandHandler("viplist", viplist))
 
+    # ⚠️ PHOTO HANDLER MUST BE FIRST
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
 
