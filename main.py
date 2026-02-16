@@ -56,17 +56,12 @@ MAIN_KB = ReplyKeyboardMarkup(
 )
 
 VIP_FREE_KB = ReplyKeyboardMarkup(
-    [
-        ["💰 Buy VIP"],
-        ["🔙 Back"]
-    ],
+    [["💰 Buy VIP"], ["🔙 Back"]],
     resize_keyboard=True
 )
 
 VIP_BACK_KB = ReplyKeyboardMarkup(
-    [
-        ["🔙 Back"]
-    ],
+    [["🔙 Back"]],
     resize_keyboard=True
 )
 
@@ -212,12 +207,16 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             make_qr(conf,png)
 
             await update.message.reply_document(open(conf,"rb"))
-            await update.message.reply_photo(open(png,"rb"),caption="📱 QR Code (WireGuard App)")
+            await update.message.reply_photo(
+                open(png,"rb"),
+                caption="📱 QR Code (WireGuard App)"
+            )
 
             if uid != ADMIN_ID:
                 set_last(uid)
 
-            os.remove(conf); os.remove(png)
+            os.remove(conf)
+            os.remove(png)
 
         except Exception as e:
             await update.message.reply_text(f"❌ Error: {e}")
@@ -242,25 +241,63 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= ADMIN =================
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID: return
-    uid=context.args[0]
-    set_vip(uid,True)
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if not context.args:
+        await update.message.reply_text("❗ Usage: /approve <user_id>")
+        return
+
+    try:
+        uid = int(context.args[0])
+    except:
+        await update.message.reply_text("❗ Invalid user id")
+        return
+
+    set_vip(uid, True)
     await update.message.reply_text(f"✅ Approved {uid}")
-    try: await context.bot.send_message(uid,"🎉 VIP Activated")
-    except: pass
+
+    try:
+        await context.bot.send_message(
+            chat_id=uid,
+            text="🎉 VIP Activated!\n\n⚡ VIP Feature များအသုံးပြုနိုင်ပါပြီ"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"⚠️ User ဆီ message မပို့နိုင်ပါ: {e}")
 
 async def reject(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID: return
-    uid=context.args[0]
-    set_vip(uid,False)
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if not context.args:
+        await update.message.reply_text("❗ Usage: /reject <user_id>")
+        return
+
+    try:
+        uid = int(context.args[0])
+    except:
+        await update.message.reply_text("❗ Invalid user id")
+        return
+
+    set_vip(uid, False)
     await update.message.reply_text(f"❌ Rejected {uid}")
-    try: await context.bot.send_message(uid,"❌ VIP Removed")
-    except: pass
+
+    try:
+        await context.bot.send_message(
+            chat_id=uid,
+            text="❌ VIP Removed\n\nAdmin မှ VIP ကိုပယ်ဖျက်လိုက်ပါပြီ"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"⚠️ User ဆီ message မပို့နိုင်ပါ: {e}")
 
 async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID: return
-    v=get_vip_users()
-    await update.message.reply_text("💎 VIP LIST\n" + "\n".join(v) if v else "📭 No VIP")
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    v = get_vip_users()
+    await update.message.reply_text(
+        "💎 VIP LIST\n" + "\n".join(v) if v else "📭 No VIP"
+    )
 
 # ================= MAIN =================
 if __name__ == "__main__":
