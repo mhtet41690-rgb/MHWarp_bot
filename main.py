@@ -431,7 +431,9 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("vipmsg", vipmsg))
     app.add_handler(CommandHandler("allmsg", allmsg))
     app.add_handler(CommandHandler("send", send_user))
-    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND,forward_user_message))
+    app.add_handler(
+    MessageHandler(filters.ALL & ~filters.COMMAND, forward_user_message)
+)
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
 
