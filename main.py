@@ -185,54 +185,49 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= PAYMENT PHOTO =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
-    uid = user.id
-    username = f"@{user.username}" if user.username else "No username"
+    try:
+        user = update.message.from_user
+        uid = user.id
+        username = f"@{user.username}" if user.username else "No username"
 
-    caption = (
-        "💰 VIP Payment Screenshot\n\n"
-        f"👤 User ID: `{uid}`\n"
-        f"👤 Name: {user.full_name}\n"
-        f"👤 Username: {username}"
-    )
+        caption = (
+            "💰 VIP Payment Screenshot\n\n"
+            f"👤 User ID : `{uid}`\n"
+            f"👤 Name : {user.full_name}\n"
+            f"👤 Username : {username}"
+        )
 
-    await context.bot.send_photo(
-        chat_id=PAYMENT_CHANNEL_ID,
-        photo=update.message.photo[-1].file_id,
-        caption=caption,
-        parse_mode="Markdown"
-    )
+        await context.bot.send_photo(
+            chat_id=PAYMENT_CHANNEL_ID,
+            photo=update.message.photo[-1].file_id,
+            caption=caption,
+            parse_mode="Markdown"
+        )
 
-    await update.message.reply_text(
-        "✅ Screenshot ပို့ပြီးပါပြီ\n"
-        "⏳ Payment ကို စစ်ဆေးနေပါသည်\n"
-        "🙏 ခဏစောင့်ပါ"
-    )
+        await update.message.reply_text(
+            "✅ Screenshot ပို့ပြီးပါပြီ\n"
+            "⏳ Payment ကို စစ်ဆေးနေပါသည်\n"
+            "🙏 ခဏစောင့်ပါ"
+        )
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
 
 # ================= ADMIN =================
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
-
     uid = int(context.args[0])
     set_vip(uid, True)
-
     await update.message.reply_text(f"✅ VIP Approved {uid}")
-
-    # 🔔 USER NOTIFICATION + TUTORIAL
-    await context.bot.send_message(uid, "🎉 VIP Activated!\n\nWelcome to VIP 💎")
-    await context.bot.send_video(uid, VIP_TUTORIAL_VIDEO)
-    await context.bot.send_message(uid, VIP_TUTORIAL_TEXT)
+    await context.bot.send_message(uid, "🎉 VIP Activated!")
 
 async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
-
     uid = int(context.args[0])
     set_vip(uid, False)
-
     await update.message.reply_text(f"❌ VIP Rejected {uid}")
-    await context.bot.send_message(uid, "❌ VIP Request Rejected")
 
 # ================= MAIN =================
 if __name__ == "__main__":
@@ -242,6 +237,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("approvevip", approvevip))
     app.add_handler(CommandHandler("rejectvip", rejectvip))
 
+    # ⚠️ PHOTO HANDLER MUST BE FIRST
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
 
