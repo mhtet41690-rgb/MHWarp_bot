@@ -22,6 +22,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
 PAYMENT_CHANNEL_ID = int(os.getenv("PAYMENT_CHANNEL_ID"))
+LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID"))
 
 WGCF_BIN = "./wgcf"
 WGCF_URL = "https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_2.2.30_linux_amd64"
@@ -43,7 +44,9 @@ VIP_TUTORIAL_TEXT = (
     "📘 VIP Tutorial\n\n"
     "1️⃣ V2box App Install လုပ်ပါ\n\n"
     "2️⃣ ဒီsub link ကို copy ကူးပြီး https://mhwarp.netlify.app/mh.txt\n\n"
-    "3️⃣ Video အတိုင်းဆက်လုပ်ပါ"
+    "3️⃣ Video အတိုင်းဆက်လုပ်ပါ\n"
+    "Vip Group Join ထားပါ\n\n"
+    "https://t.me/+KtgnAAUsu6hiNDBl"
 )
 
 PAYMENT_INFO = (
@@ -157,20 +160,12 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"https://t.me/{CHANNEL_USERNAME}")
 
     elif text == "💎 VIP Info":
-    if user["vip"]:
-        await update.message.reply_text("💎 VIP User")
-
-        await context.bot.send_video(
-            chat_id=uid,
-            video=VIP_TUTORIAL_VIDEO
-        )
-
-        await context.bot.send_message(
-            chat_id=uid,
-            text=VIP_TUTORIAL_TEXT
-        )
-    else:
-        await update.message.reply_text(VIP_PRICE, reply_markup=VIP_FREE_KB)
+        if user["vip"]:
+            await update.message.reply_text("💎 VIP User")
+            await context.bot.send_video(uid, VIP_TUTORIAL_VIDEO)
+            await context.bot.send_message(uid, VIP_TUTORIAL_TEXT)
+        else:
+            await update.message.reply_text(VIP_PRICE, reply_markup=VIP_FREE_KB)
 
     elif text == "💰 Buy VIP":
         await update.message.reply_text(PAYMENT_INFO, reply_markup=VIP_BACK_KB)
@@ -243,7 +238,7 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     caption = (
         "💰 VIP Payment Screenshot\n\n"
-        f"👤 ID: {user.id}\n"
+        f"👤 ID: {uid}\n"
         f"👤 Name: {user.full_name}\n"
         f"👤 Username: {username}"
     )
@@ -255,6 +250,32 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ\n⏳ Admin စစ်ဆေးနေပါသည်")
+
+# ================= Usersend =================
+async def forward_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    user = msg.from_user
+
+    header = (
+        "📩 User Message\n\n"
+        f"👤 ID: {user.id}\n"
+        f"👤 Name: {user.full_name}\n"
+        f"👤 Username: @{user.username}" if user.username else "❌ No username"
+    )
+
+    try:
+        if msg.text:
+            await context.bot.send_message(
+                chat_id=LOG_CHANNEL_ID,
+                text=f"{header}\n\n📝 Message:\n{msg.text}"
+            )
+        else:
+            await msg.copy(
+                chat_id=LOG_CHANNEL_ID,
+                caption=header
+            )
+    except Exception as e:
+        print("LOG ERROR:", e)
 
 # ================= ADMIN =================
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
