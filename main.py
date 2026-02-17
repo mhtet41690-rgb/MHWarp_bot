@@ -43,9 +43,7 @@ VIP_TUTORIAL_TEXT = (
     "📘 VIP Tutorial\n\n"
     "1️⃣ V2box App Install လုပ်ပါ\n\n"
     "2️⃣ ဒီsub link ကို copy ကူးပြီး https://mhwarp.netlify.app/mh.txt\n\n"
-    "3️⃣ Video အတိုင်းဆက်လုပ်ပါ\n"
-    "Vip Group Join ထားပါ\n\n"
-    "https://t.me/+KtgnAAUsu6hiNDBl"
+    "3️⃣ Video အတိုင်းဆက်လုပ်ပါ"
 )
 
 PAYMENT_INFO = (
@@ -159,12 +157,20 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"https://t.me/{CHANNEL_USERNAME}")
 
     elif text == "💎 VIP Info":
-        if user["vip"]:
-            await update.message.reply_text("💎 VIP User")
-            await context.bot.send_video(uid, VIP_TUTORIAL_VIDEO)
-            await context.bot.send_message(uid, VIP_TUTORIAL_TEXT)
-        else:
-            await update.message.reply_text(VIP_PRICE, reply_markup=VIP_FREE_KB)
+    if user["vip"]:
+        await update.message.reply_text("💎 VIP User")
+
+        await context.bot.send_video(
+            chat_id=uid,
+            video=VIP_TUTORIAL_VIDEO
+        )
+
+        await context.bot.send_message(
+            chat_id=uid,
+            text=VIP_TUTORIAL_TEXT
+        )
+    else:
+        await update.message.reply_text(VIP_PRICE, reply_markup=VIP_FREE_KB)
 
     elif text == "💰 Buy VIP":
         await update.message.reply_text(PAYMENT_INFO, reply_markup=VIP_BACK_KB)
