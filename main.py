@@ -205,7 +205,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         last_action_time = user[col_to_check]
 
         if text == "🧩 Hiddify Conf" and not user["vip"] and uid != ADMIN_ID:
-            await update.message.reply_text("🚫 Hiddify သည် VIP သီးသန့်အတွတ်ဖြစ်ပါသည်။ \n\n ios နှင့် android များအတွတ် လုပ်ရလွယ်ကူပြီး\n ခနခနပြန်ချိတ်စရာမလိုပါ။\n\n vip lifetime ကို 3000ks ဖြင့် ဝယ်ယူနိုင်ပါသည်", reply_markup=VIP_FREE_KB); return
+            await update.message.reply_text("🚫 Hiddify သည် VIP သီးသန့်အတွတ်ဖြစ်ပါသည်။ \n\n✅ios နှင့် android များအတွတ် ချိတ်ရလွယ်ကူပြီး\n🧑‍🦱ခနခနပြန်ချိတ်စရာမလိုပါ။\n\n🎉vip lifetime ကို 3000ks ဖြင့် ဝယ်ယူနိုင်ပါသည်", reply_markup=VIP_FREE_KB); return
 
         if uid != ADMIN_ID and last_action_time:
             limit = 1 if user["vip"] else 7
