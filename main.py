@@ -244,9 +244,29 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     uid = user.id
-    caption = f"💰 *VIP Payment Request*\n\n👤 Name: {user.full_name}\n🆔 ID: `{uid}`\nApprove: `/approvevip {uid}`\nReject: `/rejectvip {uid}`"
-    await context.bot.send_photo(chat_id=PAYMENT_CHANNEL_ID, photo=update.message.photo[-1].file_id, caption=caption, parse_mode="Markdown")
-    await update.message.reply_text("✅ ပြေစာ ပို့ပြီးပါပြီ။ Admin စစ်ဆေးပေးပါမည်။")
+    full_name = user.full_name
+    # Username ရှိမရှိ စစ်ဆေးပြီး မရှိလျှင် 'မရှိပါ' ဟု ပြရန်
+    username = f"@{user.username}" if user.username else "မရှိပါ"
+
+    caption = (
+        "💰 *VIP Payment Request*\n\n"
+        f"👤 **Name:** {full_name}\n"
+        f"🆔 **ID:** `{uid}`\n"
+        f"🔗 **Username:** {username}\n\n"
+        f"Approve: `/approvevip {uid}`\n"
+        f"Reject: `/rejectvip {uid}`"
+    )
+
+    try:
+        await context.bot.send_photo(
+            chat_id=PAYMENT_CHANNEL_ID, 
+            photo=update.message.photo[-1].file_id, 
+            caption=caption, 
+            parse_mode="Markdown"
+        )
+        await update.message.reply_text("✅ ပြေစာ ပို့ပြီးပါပြီ။ Admin စစ်ဆေးပေးပါမည်။")
+    except Exception as e:
+        print(f"Error sending payment photo: {e}")
 
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
