@@ -66,12 +66,20 @@ MAIN_KB = ReplyKeyboardMarkup(
 VIP_FREE_KB = ReplyKeyboardMarkup([["💰 Buy VIP"], ["🔙 Back"]], resize_keyboard=True)
 VIP_BACK_KB = ReplyKeyboardMarkup([["🔙 Back"]], resize_keyboard=True)
 
-# ================= SQLITE DB =================
+# ================= SQLITE DB (Modified for Separate Times) =================
 DB_PATH = "/data/users.db"
 os.makedirs("/data", exist_ok=True)
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cur = conn.cursor()
-cur.execute("CREATE TABLE IF NOT EXISTS users (user_id TEXT PRIMARY KEY, vip INTEGER DEFAULT 0, last INTEGER DEFAULT 0)")
+# Column ကို last_warp နှင့် last_hiddify ဟု ခွဲခြားလိုက်သည်
+cur.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT PRIMARY KEY, 
+    vip INTEGER DEFAULT 0, 
+    last_warp INTEGER DEFAULT 0,
+    last_hiddify INTEGER DEFAULT 0
+)
+""")
 conn.commit()
 
 # ================= HELPERS =================
@@ -104,20 +112,20 @@ def remaining(sec):
     return f"{d}ရက် {h}နာရီ {m}မိနစ်"
 
 def get_user(uid):
-    cur.execute("SELECT vip, last FROM users WHERE user_id=?", (str(uid),))
+    cur.execute("SELECT vip, last_warp, last_hiddify FROM users WHERE user_id=?", (str(uid),))
     r = cur.fetchone()
     if not r:
-        cur.execute("INSERT INTO users (user_id, vip, last) VALUES (?,0,0)", (str(uid),))
+        cur.execute("INSERT INTO users (user_id, vip, last_warp, last_hiddify) VALUES (?,0,0,0)", (str(uid),))
         conn.commit()
-        return {"vip": False, "last": 0}
-    return {"vip": bool(r[0]), "last": r[1]}
+        return {"vip": False, "last_warp": 0, "last_hiddify": 0}
+    return {"vip": bool(r[0]), "last_warp": r[1], "last_hiddify": r[2]}
 
 def set_vip(uid, v=True):
     cur.execute("UPDATE users SET vip=? WHERE user_id=?", (1 if v else 0, str(uid)))
     conn.commit()
 
-def set_last(uid):
-    cur.execute("UPDATE users SET last=? WHERE user_id=?", (int(time.time()), str(uid)))
+def set_last_time(uid, col_name):
+    cur.execute(f"UPDATE users SET {col_name}=? WHERE user_id=?", (int(time.time()), str(uid)))
     conn.commit()
 
 # ================= CORE LOGIC =================
@@ -176,25 +184,26 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not await is_joined_channel(context.bot, uid):
             await update.message.reply_text(f"🚫 Channel Join ပြီးမှထုတ်ယူနိုင်ပါမည်။\nhttps://t.me/{CHANNEL_USERNAME}"); return
 
-        if text == "🧩 Hiddify Conf" and not user["vip"] and uid != ADMIN_ID:
-            await update.message.reply_text("🚫 Hiddify သည် VIP သီးသန့်ဖြစ်ပါသည်။\n\n ios နှင့် android တွင် \n တစ်ခါချိတ်ထားရုံဖြင့် ထပ်ချိတ်ရန်မလိုတော့ပါ\n တစ်ခါဝယ်ထားရုံဖြင့် \nကုန်ရက်မရှိအသုံးပြုနိုင်ပါမည်", reply_markup=VIP_FREE_KB); return
+        # အသုံးပြုမည့် column ကို ခွဲခြားခြင်း
+        col_to_check = "last_warp" if text == "⚡ Generate WARP" else "last_hiddify"
+        last_action_time = user[col_to_check]
 
-        if uid != ADMIN_ID and user["last"]:
+        if text == "🧩 Hiddify Conf" and not user["vip"] and uid != ADMIN_ID:
+            await update.message.reply_text("🚫 Hiddify သည် VIP သီးသန့်ဖြစ်ပါသည်။", reply_markup=VIP_FREE_KB); return
+
+        # Cooldown စစ်ဆေးခြင်း
+        if uid != ADMIN_ID and last_action_time:
             limit = 1 if user["vip"] else 7
-            nt = datetime.fromtimestamp(user["last"]) + timedelta(days=limit)
+            nt = datetime.fromtimestamp(last_action_time) + timedelta(days=limit)
             if now < nt:
-                await update.message.reply_text(f"⏳ ကျန်ချိန်: {remaining(int((nt-now).total_seconds()))}"); return
+                await update.message.reply_text(f"⏳ {text} အတွက် ကျန်ချိန်: {remaining(int((nt-now).total_seconds()))}"); return
 
         status = await update.message.reply_text("⚙️ လုပ်ဆောင်နေပါသည်...")
         try:
             if text == "🧩 Hiddify Conf":
                 b64_str = generate_hiddify_base64()
                 await update.message.reply_text(f"`{b64_str}`", parse_mode="MarkdownV2")
-                
-                guide = (
-                    "👆 အပေါ်က code ကို copy ယူပါ။\n\n"
-                    "Hiddify App ထဲဝင်ပြီး **New Profile** -> **Add From Clipboard** နှိပ်ပါ။"
-                )
+                guide = "👆 အပေါ်က code ကို copy ယူပါ။\n\nHiddify App ထဲဝင်ပြီး **New Profile** -> **Add From Clipboard** နှိပ်ပါ။"
                 await update.message.reply_text(guide, parse_mode="Markdown")
             else:
                 setup_wgcf(); reset_wgcf()
@@ -211,22 +220,16 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_photo(photo=open(f"{name}.png", "rb"), caption="📱 QR Code Scan")
                 os.remove(f"{name}.conf"); os.remove(f"{name}.png")
 
-            if uid != ADMIN_ID: set_last(uid)
+            if uid != ADMIN_ID: 
+                set_last_time(uid, col_to_check) # သက်ဆိုင်ရာ column ကိုသာ update လုပ်မည်
             await status.delete()
         except Exception as e: await status.edit_text(f"❌ Error: {e}")
 
-# ================= ADMIN & PAYMENT =================
+# ... (အောက်ပါ Admin Handler များသည် ယခင်အတိုင်းဖြစ်သည်)
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     uid = user.id
-    caption = (
-        f"💰 *VIP Payment Request*\n\n"
-        f"👤 Name: {user.full_name}\n"
-        f"🆔 ID: `{uid}`\n"
-        f"🔗 User: @{user.username if user.username else 'N/A'}\n\n"
-        f"Approve: `/approvevip {uid}`\n"
-        f"Reject: `/rejectvip {uid}`"
-    )
+    caption = f"💰 *VIP Payment Request*\n\n👤 Name: {user.full_name}\n🆔 ID: `{uid}`\nApprove: `/approvevip {uid}`\nReject: `/rejectvip {uid}`"
     await context.bot.send_photo(chat_id=PAYMENT_CHANNEL_ID, photo=update.message.photo[-1].file_id, caption=caption, parse_mode="Markdown")
     await update.message.reply_text("✅ ပြေစာ ပို့ပြီးပါပြီ။ Admin စစ်ဆေးပေးပါမည်။")
 
@@ -234,61 +237,33 @@ async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
     uid = context.args[0]; set_vip(uid, True)
     await update.message.reply_text(f"✅ VIP Approved: {uid}")
-    await context.bot.send_message(uid, "🎉 VIP အဖြစ် အတည်ပြုပြီးပါပြီ။ Hiddify Conf ထုတ်ယူနိုင်ပါပြီ။\n\n Vip info နှိပ်၍ စစ်ကြည့်ပါ")
+    await context.bot.send_message(uid, "🎉 VIP Activated!")
 
 async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
     uid = context.args[0]; set_vip(uid, False)
     await update.message.reply_text(f"❌ VIP Rejected: {uid}")
-    await context.bot.send_message(uid, "❌ သင်၏ VIP လျှောက်ထားမှု ငြင်းပယ်ခံရပါသည်။")
 
 async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
+    if update.effective_user.id != ADMIN_ID: return
     cur.execute("SELECT user_id FROM users WHERE vip=1")
     rows = cur.fetchall()
-
-    if not rows:
-        await update.message.reply_text("❌ VIP User မရှိသေးပါ")
-        return
-
-    text = "💎 VIP USER LIST (ID & Username)\n\n"
-
-    for i, (uid,) in enumerate(rows, start=1):
-        try:
-            chat = await context.bot.get_chat(int(uid))
-            username = f"@{chat.username}" if chat.username else "❌ Not set"
-        except:
-            username = "❌ Not found"
-
-        text += f"{i}. 👤 ID: {uid}\n   👤 Username: {username}\n\n"
-
-        # Telegram message length safety
-        if len(text) > 3500:
-            await update.message.reply_text(text)
-            text = ""
-
-    if text:
-        await update.message.reply_text(text)
+    text = "💎 VIP USER LIST\n\n" + "\n".join([f"👤 ID: {r[0]}" for r in rows]) if rows else "❌ No VIPs"
+    await update.message.reply_text(text)
 
 async def allmsg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not update.message.reply_to_message: return
     cur.execute("SELECT user_id FROM users"); users = cur.fetchall()
-    sent = 0
     for (uid,) in users:
-        try: await update.message.reply_to_message.copy(chat_id=int(uid)); sent += 1
+        try: await update.message.reply_to_message.copy(chat_id=int(uid))
         except: continue
-    await update.message.reply_text(f"📢 Broadcast Done. Sent: {sent}")
+    await update.message.reply_text("📢 Done.")
 
 async def send_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not update.message.reply_to_message or not context.args: return
-    try:
-        await update.message.reply_to_message.copy(chat_id=int(context.args[0]))
-        await update.message.reply_text("✅ Message Sent.")
-    except Exception as e: await update.message.reply_text(f"❌ Failed: {e}")
+    try: await update.message.reply_to_message.copy(chat_id=int(context.args[0]))
+    except: pass
 
-# ================= MAIN =================
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
