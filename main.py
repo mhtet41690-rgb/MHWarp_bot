@@ -39,21 +39,20 @@ VIP_PRICE = (
     "🥰 *VIP Lifetime* 🥰\n\n"
     "💐 စင်္ကာပူ၊ ထိုင်း အစရှိသည့် server များကို lifetime အသုံးပြုနိုင်ပါမည်။\n"
     "💎 တစ်ခါဝယ်ရုံဖြင့် တစ်သက်စာ အသုံးပြုရမည်။\n"
-    "🎊Warp File ban ခံရပါက VIP များအတွက် အသစ်ပြန်ပေးပါမည်။\n\n"
+    "🎊 File ban ခံရပါက VIP များအတွက် အသစ်ပြန်ပေးပါမည်။\n\n"
     "💵 *Price: 3000 Ks Lifetime*\n"
-    "📆 VIP -> ၁ ရက် ၁ ခါ Conf ထုတ်ယူနိုင်သည်"
+    "📆 VIP -> ၁ ရက် ၁ ခါ ထုတ်ယူနိုင်သည်"
 )
 
 VIP_TUTORIAL_VIDEO = "BAACAgUAAxkBAAIB9WmS1Mwvr42_VTJgDBs_nD8DN5-lAAL0GAACIkeZVPJRAAF0x4zJMzoE"
-VIP_TUTORIAL_TEXT = "📘 *VIP Tutorial*\n\n1️⃣ V2box App Install ပါ\n\n2️⃣ https://mhwarp.netlify.app/mh.txt\n Video အတိုင်း Sub link ထည့်သွင်းပါ"
+VIP_TUTORIAL_TEXT = "📘 *VIP Tutorial*\n\n1️⃣ V2box App Install ပါ\n2️⃣ Video အတိုင်း Sub link ထည့်သွင်းပါ"
 
 PAYMENT_INFO = (
     "💳 *Payment Info*\n\n"
     "🏦 Kpay (09982383696)\n"
     "🏦 Wave Money (09972752831)\n\n"
-    "💵 Amount : 3000 Ks\n\n"
-    "📸 ပြေစာပုံ botမှာ ပို့ပေးပါ။ Admin မှ စစ်ဆေးပေးပါမည်။\n"
-    "‼️ပြေစာပုံသာ ပို့ရန်‼️"
+    "💵 Amount : 3000 Ks\n"
+    "📸 ပြေစာပုံ ပို့ပေးပါ။ Admin မှ စစ်ဆေးပေးပါမည်။"
 )
 
 # ================= KEYBOARD =================
@@ -138,7 +137,7 @@ def generate_hiddify_base64():
             "fake_packets": "5-10", "fake_packets_size": "40-100", "fake_packets_mode": "m4"
         }]
     }
-    profile = "//profile-title: @mhwarp\n" + json.dumps(conf, separators=(",", ":"))
+    profile = "//profile-title: MHwarp\n" + json.dumps(conf, separators=(",", ":"))
     return base64.b64encode(profile.encode()).decode()
 
 async def is_joined_channel(bot, uid):
@@ -172,10 +171,10 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text in ["⚡ Generate WARP", "🧩 Hiddify Conf"]:
         if not await is_joined_channel(context.bot, uid):
-            await update.message.reply_text(f"🚫 Channel Join ပြီးမှထုတ်ယူနိုင်ပါမည်\nhttps://t.me/{CHANNEL_USERNAME}"); return
+            await update.message.reply_text(f"🚫 Channel Join လုပ်ပါ\nhttps://t.me/{CHANNEL_USERNAME}"); return
 
         if text == "🧩 Hiddify Conf" and not user["vip"] and uid != ADMIN_ID:
-            await update.message.reply_text("🚫 Hiddify သည် VIP သီးသန့်ဖြစ်ပါသည်။\n\n ios နဲ့ androidမှာ တစ်ခါချိတ်ထားရုံဖြင့် ပြန်ချိတ်စရာမလို\n တစ်ခါဝယ်ထားရုံဖြင့် ကုန်ရက်မရှိ လိုင်းကောင်းစွာ အသုံးပြုနိုင်ပါမည်။", reply_markup=VIP_FREE_KB); return
+            await update.message.reply_text("🚫 Hiddify သည် VIP သီးသန့်ဖြစ်ပါသည်။", reply_markup=VIP_FREE_KB); return
 
         if uid != ADMIN_ID and user["last"]:
             limit = 1 if user["vip"] else 7
@@ -187,12 +186,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             if text == "🧩 Hiddify Conf":
                 b64_str = generate_hiddify_base64()
-                await update.message.reply_text(f"`{b64_str}`", parse_mode="MarkdownV2")                
-                guide = (
-                    "👆 အပေါ်က code ကို copy ယူပါ။\n\n"
-                    "Hiddify App ထဲဝင်ပြီး **New Profile** -> **Add From Clipboard** နှိပ်ပါ။"
-                )
-                await update.message.reply_text(guide, parse_mode="Markdown")
+                await update.message.reply_text(f"✅ *Hiddify VIP*\n\n`{b64_str}`", parse_mode="MarkdownV2")
             else:
                 setup_wgcf(); reset_wgcf()
                 subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True, timeout=30)
@@ -231,7 +225,7 @@ async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
     uid = context.args[0]; set_vip(uid, True)
     await update.message.reply_text(f"✅ VIP Approved: {uid}")
-    await context.bot.send_message(uid, "🎉 VIP အဖြစ် အတည်ပြုပြီးပါပြီ။\n\n Hiddify Conf ထုတ်ယူနိုင်ပါပြီ။\n vip info နှိပ်ရင်စစ်ကြည့်နိုင်ပါသည်။ ")
+    await context.bot.send_message(uid, "🎉 VIP အဖြစ် အတည်ပြုပြီးပါပြီ။ Hiddify Conf ထုတ်ယူနိုင်ပါပြီ။")
 
 async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
