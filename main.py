@@ -187,7 +187,13 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             if text == "🧩 Hiddify Conf":
                 b64_str = generate_hiddify_base64()
-                await update.message.reply_text(f"✅ *Hiddify VIP*\n\n`{b64_str}`", parse_mode="MarkdownV2")
+                await update.message.reply_text(f"`{b64_str}`", parse_mode="MarkdownV2")
+                
+                guide = (
+                    "👆 အပေါ်က code ကို copy ယူပါ။\n\n"
+                    "Hiddify App ထဲဝင်ပြီး **New Profile** -> **Add From Clipboard** နှိပ်ပါ။"
+                )
+                await update.message.reply_text(guide, parse_mode="Markdown")
             else:
                 setup_wgcf(); reset_wgcf()
                 subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True, timeout=30)
@@ -226,7 +232,7 @@ async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
     uid = context.args[0]; set_vip(uid, True)
     await update.message.reply_text(f"✅ VIP Approved: {uid}")
-    await context.bot.send_message(uid, "🎉 VIP အဖြစ် အတည်ပြုပြီးပါပြီ။ Hiddify Conf ထုတ်ယူနိုင်ပါပြီ။")
+    await context.bot.send_message(uid, "🎉 VIP အဖြစ် အတည်ပြုပြီးပါပြီ။ Hiddify Conf ထုတ်ယူနိုင်ပါပြီ။\n\n Vip info နှိပ်၍ စစ်ကြည့်ပါ")
 
 async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
