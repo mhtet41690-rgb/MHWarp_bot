@@ -45,12 +45,14 @@ VIP_PRICE = (
 )
 
 VIP_TUTORIAL_VIDEO = "BAACAgUAAxkBAAIB9WmS1Mwvr42_VTJgDBs_nD8DN5-lAAL0GAACIkeZVPJRAAF0x4zJMzoE"
-VIP_TUTORIAL_TEXT = "📘 *VIP Tutorial*\n\n1️⃣ V2box App Install ပါ\n2️⃣ Video အတိုင်း Sub link ထည့်သွင်းပါ"
+VIP_TUTORIAL_TEXT = "📘 *VIP Tutorial*\n\n1️⃣ V2box App Install ပါ\n2️⃣ https://mhwarp.netlify.app/mh.txt \n Video အတိုင်း Sub link ထည့်သွင်းပါ"
 
 PAYMENT_INFO = (
     "💳 *Payment Info*\n\n"
-    "🏦 Kpay : Win Htut Kyaw \n\n(09982383696)\n"
-    "🏦 Wave Money : Mg Kyaw Kyaw Naing \n\n(09972752831)\n\n"
+    "🏦 Kpay : Win Htut Kyaw \n"
+    "📞(09982383696)\n\n"
+    "🏦 Wave Money : Mg Kyaw Kyaw Naing\n"
+    "📞 09972752831\n\n"
     "💵 Amount : 3000 Ks\n"
     "📸 ပြေစာပုံ ပို့ပေးပါ။ Admin မှ စစ်ဆေးပေးပါမည်။\n"
     "‼️ပြေစာပုံသာ ပို့ရန်‼️"
@@ -138,7 +140,7 @@ def generate_hiddify_base64():
             "fake_packets": "5-10", "fake_packets_size": "40-100", "fake_packets_mode": "m4"
         }]
     }
-    profile = "//profile-title: MHwarp\n" + json.dumps(conf, separators=(",", ":"))
+    profile = "//profile-title: tg @mhwarp\n" + json.dumps(conf, separators=(",", ":"))
     return base64.b64encode(profile.encode()).decode()
 
 async def is_joined_channel(bot, uid):
