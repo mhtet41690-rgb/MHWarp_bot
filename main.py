@@ -205,7 +205,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         last_action_time = user[col_to_check]
 
         if text == "🧩 Hiddify Conf" and not user["vip"] and uid != ADMIN_ID:
-            await update.message.reply_text("🚫 Hiddify သည် VIP သီးသန့်ဖြစ်ပါသည်။", reply_markup=VIP_FREE_KB); return
+            await update.message.reply_text("🚫 Hiddify သည် VIP သီးသန့်အတွတ်ဖြစ်ပါသည်။ \n\n ios နှင့် android များအတွတ် လုပ်ရလွယ်ကူပြီး\n ခနခနပြန်ချိတ်စရာမလိုပါ။\n\n vip lifetime ကို 3000ks ဖြင့် ဝယ်ယူနိုင်ပါသည်", reply_markup=VIP_FREE_KB); return
 
         if uid != ADMIN_ID and last_action_time:
             limit = 1 if user["vip"] else 7
@@ -258,13 +258,25 @@ async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
     uid = context.args[0]; set_vip(uid, False)
     await update.message.reply_text(f"❌ VIP Rejected: {uid}")
+    await context.bot.send_message(uid, "❌ VIP Rejected! ")
 
 async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID: return
     cur.execute("SELECT user_id FROM users WHERE vip=1")
     rows = cur.fetchall()
-    text = "💎 VIP USER LIST\n\n" + "\n".join([f"👤 ID: {r[0]}" for r in rows]) if rows else "❌ No VIPs"
-    await update.message.reply_text(text)
+    if not rows:
+        await update.message.reply_text("❌ VIP User မရှိသေးပါ")
+        return
+    status = await update.message.reply_text("🔎 VIP စာရင်းကို ရှာဖွေနေပါသည်...")
+    text = "💎 **VIP USER LIST**\n\n"
+    for i, (uid,) in enumerate(rows, start=1):
+        try:
+            chat = await context.bot.get_chat(int(uid))
+            name, uname = chat.full_name, (f"@{chat.username}" if chat.username else "N/A")
+        except: name, uname = "Unknown", "N/A"
+        text += f"{i}. 🆔 `{uid}`\n   👤 **Name:** {name}\n   🔗 **User:** {uname}\n\n"
+    await update.message.reply_text(text, parse_mode="Markdown")
+    await status.delete()
 
 async def allmsg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not update.message.reply_to_message: return
@@ -274,6 +286,11 @@ async def allmsg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except: continue
     await update.message.reply_text("📢 Broadcast Done.")
 
+async def send_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID or not update.message.reply_to_message or not context.args: return
+    try: await update.message.reply_to_message.copy(chat_id=int(context.args[0]))
+    except Exception as e: await update.message.reply_text(f"❌ Error: {e}")
+
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
@@ -281,6 +298,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("rejectvip", rejectvip))
     app.add_handler(CommandHandler("viplist", viplist))
     app.add_handler(CommandHandler("allmsg", allmsg))
+    app.add_handler(CommandHandler("send", send_user))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
     print("🤖 BOT STARTED")
