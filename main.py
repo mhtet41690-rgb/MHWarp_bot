@@ -234,21 +234,34 @@ async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(uid, "❌ သင်၏ VIP လျှောက်ထားမှု ငြင်းပယ်ခံရပါသည်။")
 
 async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID: return
+    if update.effective_user.id != ADMIN_ID:
+        return
+
     cur.execute("SELECT user_id FROM users WHERE vip=1")
     rows = cur.fetchall()
+
     if not rows:
         await update.message.reply_text("❌ VIP User မရှိသေးပါ")
         return
-    text = "💎 **VIP USER LIST**\n\n"
+
+    text = "💎 VIP USER LIST (ID & Username)\n\n"
+
     for i, (uid,) in enumerate(rows, start=1):
         try:
             chat = await context.bot.get_chat(int(uid))
-            name = chat.full_name
-            uname = f"@{chat.username}" if chat.username else "No Username"
-        except: name, uname = "Unknown", "N/A"
-        text += f"{i}. 🆔 `{uid}` | {name} ({uname})\n"
-    await update.message.reply_text(text, parse_mode="Markdown")
+            username = f"@{chat.username}" if chat.username else "❌ Not set"
+        except:
+            username = "❌ Not found"
+
+        text += f"{i}. 👤 ID: {uid}\n   👤 Username: {username}\n\n"
+
+        # Telegram message length safety
+        if len(text) > 3500:
+            await update.message.reply_text(text)
+            text = ""
+
+    if text:
+        await update.message.reply_text(text)
 
 async def allmsg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not update.message.reply_to_message: return
