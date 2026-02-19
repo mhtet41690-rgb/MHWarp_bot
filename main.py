@@ -6,7 +6,12 @@ import subprocess
 import qrcode
 import sqlite3
 import requests
-from datetime import datetime, timedelta
+import json
+import base64
+from datetime import datetime, timezone, timedelta
+
+from nacl.public import PrivateKey
+import base64 as b64
 
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
@@ -17,7 +22,7 @@ from telegram.ext import (
     filters
 )
 
-# ================= CONFIG =================
+# ================= CONFIG (Environment Variables) =================
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
@@ -26,128 +31,126 @@ LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID"))
 
 WGCF_BIN = "./wgcf"
 WGCF_URL = "https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_2.2.30_linux_amd64"
-
 FIXED_ENDPOINT = "162.159.192.1:500"
+API = "https://api.cloudflareclient.com/v0i1909051800"
 
+# ================= MESSAGES =================
 VIP_PRICE = (
-    "🥰 VIP Lifetime 🥰\n\n"
-    "💐စင်္ကာပူ၊ထိုင်း အစရှိသည့် server များကိုလည်း lifetime အသုံးပြုလို့ရသွားမှာပါ။\n\n"
-    "💎 တစ်ခါဝယ်ထားယုံဖြင့် တစ်သက်စာ အသုံးပြုလို့ရသွားမှာပါ။\n\n"
-    "🎊 Warp file ကို ISP ဘတ်မှ ban ခဲ့ပါက VIP User များအတွက် File အသစ်ပေးပါမည်။\n\n"
-    "💵 Price: 3000 Ks Lifetime\n\n"
-    "📆 VIP → တစ်ရက်တစ်ခါ Warp Generate"
+    "🥰 *VIP Lifetime* 🥰\n\n"
+    "💐 စင်္ကာပူ၊ ထိုင်း အစရှိသည့် server များကို lifetime အသုံးပြုနိုင်ပါမည်။\n"
+    "💎 တစ်ခါဝယ်ရုံဖြင့် တစ်သက်စာ အသုံးပြုရမည်။\n"
+    "🎊Warp File ban ခံရပါက VIP များအတွက် အသစ်ပြန်ပေးပါမည်။\n\n"
+    "💵 *Price: 3000 Ks Lifetime*\n"
+    "📆 VIP -> ၁ ရက် ၁ ခါ Conf ထုတ်ယူနိုင်သည်"
 )
 
 VIP_TUTORIAL_VIDEO = "BAACAgUAAxkBAAIB9WmS1Mwvr42_VTJgDBs_nD8DN5-lAAL0GAACIkeZVPJRAAF0x4zJMzoE"
-
-VIP_TUTORIAL_TEXT = (
-    "📘 VIP Tutorial\n\n"
-    "1️⃣ V2box App Install လုပ်ပါ\n\n"
-    "2️⃣ ဒီsub link ကို copy ကူးပြီး https://mhwarp.netlify.app/mh.txt\n\n"
-    "3️⃣ Video အတိုင်းဆက်လုပ်ပါ"
-)
+VIP_TUTORIAL_TEXT = "📘 *VIP Tutorial*\n\n1️⃣ V2box App Install ပါ\n\n2️⃣ https://mhwarp.netlify.app/mh.txt\n Video အတိုင်း Sub link ထည့်သွင်းပါ"
 
 PAYMENT_INFO = (
-    "💳 Payment Info\n\n"
-    "🏦 Kpay\n"
-    "👤 Win Htut Kyaw\n"
-    "📱 09982383696\n\n"
-    "🏦 Wave Money\n"
-    "👤 Mg Kyaw Kyaw Naing\n"
-    "📱 09972752831\n\n"
-    "💵 Amount : 3000 Ks\n"
-    "📸 Screenshot ကို bot ထဲပို့ပါ\n"
-    "🖼️ ပြေစာပုံပဲ ပို့ပေးပါ ‼️"
+    "💳 *Payment Info*\n\n"
+    "🏦 Kpay (09982383696)\n"
+    "🏦 Wave Money (09972752831)\n\n"
+    "💵 Amount : 3000 Ks\n\n"
+    "📸 ပြေစာပုံ botမှာ ပို့ပေးပါ။ Admin မှ စစ်ဆေးပေးပါမည်။\n"
+    "‼️ပြေစာပုံသာ ပို့ရန်‼️"
 )
 
 # ================= KEYBOARD =================
 MAIN_KB = ReplyKeyboardMarkup(
-    [["⚡ Generate WARP", "💎 VIP Info"], ["📢 Join Channel"]],
+    [["⚡ Generate WARP", "🧩 Hiddify Conf"], ["💎 VIP Info", "📢 Join Channel"]],
     resize_keyboard=True
 )
+VIP_FREE_KB = ReplyKeyboardMarkup([["💰 Buy VIP"], ["🔙 Back"]], resize_keyboard=True)
+VIP_BACK_KB = ReplyKeyboardMarkup([["🔙 Back"]], resize_keyboard=True)
 
-VIP_FREE_KB = ReplyKeyboardMarkup(
-    [["💰 Buy VIP"], ["🔙 Back"]],
-    resize_keyboard=True
-)
-
-VIP_BACK_KB = ReplyKeyboardMarkup(
-    [["🔙 Back"]],
-    resize_keyboard=True
-)
-
-# ================= SQLITE =================
+# ================= SQLITE DB =================
 DB_PATH = "/data/users.db"
 os.makedirs("/data", exist_ok=True)
-
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cur = conn.cursor()
-
-cur.execute("""
-CREATE TABLE IF NOT EXISTS users (
-    user_id TEXT PRIMARY KEY,
-    vip INTEGER DEFAULT 0,
-    last INTEGER DEFAULT 0
-)
-""")
+cur.execute("CREATE TABLE IF NOT EXISTS users (user_id TEXT PRIMARY KEY, vip INTEGER DEFAULT 0, last INTEGER DEFAULT 0)")
 conn.commit()
 
-# ================= WGCF =================
+# ================= HELPERS =================
 def setup_wgcf():
     if not os.path.exists(WGCF_BIN):
-        r = requests.get(WGCF_URL)
-        with open("wgcf", "wb") as f:
-            f.write(r.content)
-        os.chmod("wgcf", 0o755)
+        r = requests.get(WGCF_URL); f = open(WGCF_BIN, "wb"); f.write(r.content); f.close()
+        os.chmod(WGCF_BIN, 0o755)
 
 def reset_wgcf():
     for f in ["wgcf-account.toml", "wgcf-profile.conf"]:
-        if os.path.exists(f):
-            os.remove(f)
+        if os.path.exists(f): os.remove(f)
 
-# ================= HELPERS =================
-def now_ts():
-    return int(time.time())
+def wg_genkey():
+    priv = PrivateKey.generate()
+    return b64.b64encode(bytes(priv)).decode()
+
+def wg_pubkey(priv_b64):
+    priv = PrivateKey(b64.b64decode(priv_b64))
+    return b64.b64encode(bytes(priv.public_key)).decode()
+
+def api_call(method, path, token=None, data=None):
+    headers = {"user-agent": "", "content-type": "application/json"}
+    if token: headers["authorization"] = f"Bearer {token}"
+    r = requests.request(method, f"{API}/{path}", headers=headers, json=data, timeout=20)
+    r.raise_for_status()
+    return r.json()
 
 def remaining(sec):
-    d = sec // 86400
-    h = (sec % 86400) // 3600
-    m = (sec % 3600) // 60
+    d, h, m = sec // 86400, (sec % 86400) // 3600, (sec % 3600) // 60
     return f"{d}ရက် {h}နာရီ {m}မိနစ်"
 
-# ================= CHANNEL CHECK =================
-async def is_joined_channel(bot, uid):
-    try:
-        m = await bot.get_chat_member(f"@{CHANNEL_USERNAME}", uid)
-        return m.status in ("member", "administrator", "creator")
-    except:
-        return False
-
-# ================= DB =================
 def get_user(uid):
-    cur.execute("SELECT vip,last FROM users WHERE user_id=?", (str(uid),))
+    cur.execute("SELECT vip, last FROM users WHERE user_id=?", (str(uid),))
     r = cur.fetchone()
     if not r:
-        cur.execute("INSERT INTO users VALUES (?,?,?)", (str(uid), 0, 0))
+        cur.execute("INSERT INTO users (user_id, vip, last) VALUES (?,0,0)", (str(uid),))
         conn.commit()
         return {"vip": False, "last": 0}
     return {"vip": bool(r[0]), "last": r[1]}
 
 def set_vip(uid, v=True):
     cur.execute("UPDATE users SET vip=? WHERE user_id=?", (1 if v else 0, str(uid)))
-    if cur.rowcount == 0:
-        cur.execute("INSERT INTO users VALUES (?,?,?)", (str(uid), 1 if v else 0, 0))
     conn.commit()
 
 def set_last(uid):
-    cur.execute("UPDATE users SET last=? WHERE user_id=?", (now_ts(), str(uid)))
+    cur.execute("UPDATE users SET last=? WHERE user_id=?", (int(time.time()), str(uid)))
     conn.commit()
 
-# ================= START =================
+# ================= CORE LOGIC =================
+def generate_hiddify_base64():
+    priv = wg_genkey(); pub = wg_pubkey(priv)
+    reg = api_call("POST", "reg", data={
+        "install_id": "", "tos": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        "key": pub, "fcm_token": "", "type": "ios", "locale": "en_US",
+    })
+    cid, token = reg["result"]["id"], reg["result"]["token"]
+    res = api_call("PATCH", f"reg/{cid}", token, {"warp_enabled": True})
+    cfg = res["result"]["config"]
+    conf = {
+        "outbounds": [{
+            "tag": "WARP", "mtu": 1280, "private_key": priv, "type": "wireguard",
+            "reserved": list(base64.b64decode(cfg["client_id"])),
+            "local_address": [f'{cfg["interface"]["addresses"]["v4"]}/32', f'{cfg["interface"]["addresses"]["v6"]}/128'],
+            "peer_public_key": cfg["peers"][0]["public_key"],
+            "server": "162.159.192.1", "server_port": 500,
+            "fake_packets": "5-10", "fake_packets_size": "40-100", "fake_packets_mode": "m4"
+        }]
+    }
+    profile = "//profile-title: @mhwarp\n" + json.dumps(conf, separators=(",", ":"))
+    return base64.b64encode(profile.encode()).decode()
+
+async def is_joined_channel(bot, uid):
+    try:
+        m = await bot.get_chat_member(f"@{CHANNEL_USERNAME}", uid)
+        return m.status in ("member", "administrator", "creator")
+    except: return False
+
+# ================= HANDLERS =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 မင်္ဂလာပါ\n\nလိုင်းကောင်းတဲ့ VPN Key ထုတ်နိုင်ပါပြီ", reply_markup=MAIN_KB)
 
-# ================= MENU =================
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     uid = update.message.from_user.id
@@ -155,288 +158,130 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now()
 
     if text == "📢 Join Channel":
-        await update.message.reply_text(f"https://t.me/{CHANNEL_USERNAME}")
-
+        await update.message.reply_text(f"https://t.me/{CHANNEL_USERNAME}"); return
     elif text == "💎 VIP Info":
         if user["vip"]:
-            await update.message.reply_text("💎 VIP User")
-            await context.bot.send_video(
-    chat_id=uid,
-    video=VIP_TUTORIAL_VIDEO
-)
-            await context.bot.send_message(
-    chat_id=uid,
-    text=VIP_TUTORIAL_TEXT
-)
-        else:
-            await update.message.reply_text(VIP_PRICE, reply_markup=VIP_FREE_KB)
-
+            await context.bot.send_video(chat_id=uid, video=VIP_TUTORIAL_VIDEO)
+            await update.message.reply_text(VIP_TUTORIAL_TEXT, parse_mode="Markdown")
+        else: await update.message.reply_text(VIP_PRICE, reply_markup=VIP_FREE_KB, parse_mode="Markdown")
+        return
     elif text == "💰 Buy VIP":
-        await update.message.reply_text(PAYMENT_INFO, reply_markup=VIP_BACK_KB)
-
+        await update.message.reply_text(PAYMENT_INFO, reply_markup=VIP_BACK_KB, parse_mode="Markdown"); return
     elif text == "🔙 Back":
-        await update.message.reply_text("🏠 Main Menu", reply_markup=MAIN_KB)
+        await update.message.reply_text("🏠 Main Menu", reply_markup=MAIN_KB); return
 
-    elif text == "⚡ Generate WARP":
-
+    if text in ["⚡ Generate WARP", "🧩 Hiddify Conf"]:
         if not await is_joined_channel(context.bot, uid):
-            await update.message.reply_text(f"🚫 Channel Join လုပ်ပါ\nhttps://t.me/{CHANNEL_USERNAME}")
-            return
+            await update.message.reply_text(f"🚫 Channel Join ပြီးမှထုတ်ယူနိုင်ပါမည်\nhttps://t.me/{CHANNEL_USERNAME}"); return
+
+        if text == "🧩 Hiddify Conf" and not user["vip"] and uid != ADMIN_ID:
+            await update.message.reply_text("🚫 Hiddify သည် VIP သီးသန့်ဖြစ်ပါသည်။\n\n ios နဲ့ androidမှာ တစ်ခါချိတ်ထားရုံဖြင့် ပြန်ချိတ်စရာမလို\n တစ်ခါဝယ်ထားရုံဖြင့် ကုန်ရက်မရှိ လိုင်းကောင်းစွာ အသုံးပြုနိုင်ပါမည်။", reply_markup=VIP_FREE_KB); return
 
         if uid != ADMIN_ID and user["last"]:
             limit = 1 if user["vip"] else 7
             nt = datetime.fromtimestamp(user["last"]) + timedelta(days=limit)
             if now < nt:
-                await update.message.reply_text(f"⏳ ကျန်ချိန်: {remaining(int((nt-now).total_seconds()))}")
-                return
+                await update.message.reply_text(f"⏳ ကျန်ချိန်: {remaining(int((nt-now).total_seconds()))}"); return
 
-        await update.message.reply_text("⚙️ Generating...")
-
+        status = await update.message.reply_text("⚙️ လုပ်ဆောင်နေပါသည်...")
         try:
-            setup_wgcf()
-            reset_wgcf()
+            if text == "🧩 Hiddify Conf":
+                b64_str = generate_hiddify_base64()
+                await update.message.reply_text(f"`{b64_str}`", parse_mode="MarkdownV2")                
+                guide = (
+                    "👆 အပေါ်က code ကို copy ယူပါ။\n\n"
+                    "Hiddify App ထဲဝင်ပြီး **New Profile** -> **Add From Clipboard** နှိပ်ပါ။"
+                )
+                await update.message.reply_text(guide, parse_mode="Markdown")
+            else:
+                setup_wgcf(); reset_wgcf()
+                subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True, timeout=30)
+                subprocess.run([WGCF_BIN, "generate"], check=True, timeout=30)
+                with open("wgcf-profile.conf", "r") as f:
+                    data = f.read().replace("engage.cloudflareclient.com:2408", FIXED_ENDPOINT)
+                
+                name = f"MH_{uuid.uuid4().hex[:8]}"
+                with open(f"{name}.conf", "w") as f: f.write(data)
+                qrcode.make(data).save(f"{name}.png")
+                
+                await update.message.reply_document(open(f"{name}.conf", "rb"))
+                await update.message.reply_photo(photo=open(f"{name}.png", "rb"), caption="📱 QR Code Scan")
+                os.remove(f"{name}.conf"); os.remove(f"{name}.png")
 
-            subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True, timeout=30)
-            subprocess.run([WGCF_BIN, "generate"], check=True, timeout=30)
+            if uid != ADMIN_ID: set_last(uid)
+            await status.delete()
+        except Exception as e: await status.edit_text(f"❌ Error: {e}")
 
-            # ===== FIX ENDPOINT =====
-            with open("wgcf-profile.conf", "r") as f:
-                conf_data = f.read()
-
-            conf_data = conf_data.replace(
-                "Endpoint = engage.cloudflareclient.com:2408",
-                f"Endpoint = {FIXED_ENDPOINT}"
-            )
-
-            with open("wgcf-profile.conf", "w") as f:
-                f.write(conf_data)
-
-            conf = f"MHWARP_{uuid.uuid4().hex[:8]}.conf"
-            png = conf.replace(".conf", ".png")
-
-            shutil.move("wgcf-profile.conf", conf)
-
-            with open(conf, "r") as f:
-                img = qrcode.make(f.read())
-                img.save(png)
-
-            await update.message.reply_document(open(conf, "rb"))
-            await update.message.reply_photo(photo=open(png, "rb"),caption="📱 QR Code (WireGuard app မှာ Scan လုပ်ပါ)")
-            
-            await update.message.reply_text("‼️ရောင်းချခွင့် မပြုပါ‼️")
-
-            if uid != ADMIN_ID:
-                set_last(uid)
-
-            os.remove(conf)
-            os.remove(png)
-
-        except Exception as e:
-            await update.message.reply_text(f"❌ Error:\n{e}")
-
-# ================= PAYMENT PHOTO =================
+# ================= ADMIN & PAYMENT =================
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     uid = user.id
-    username = f"@{user.username}" if user.username else "No username"
-
     caption = (
-        "💰 VIP Payment Screenshot\n\n"
-        f"👤 ID: {uid}\n"
+        f"💰 *VIP Payment Request*\n\n"
         f"👤 Name: {user.full_name}\n"
-        f"👤 Username: {username}"
+        f"🆔 ID: `{uid}`\n"
+        f"🔗 User: @{user.username if user.username else 'N/A'}\n\n"
+        f"Approve: `/approvevip {uid}`\n"
+        f"Reject: `/rejectvip {uid}`"
     )
+    await context.bot.send_photo(chat_id=PAYMENT_CHANNEL_ID, photo=update.message.photo[-1].file_id, caption=caption, parse_mode="Markdown")
+    await update.message.reply_text("✅ ပြေစာ ပို့ပြီးပါပြီ။ Admin စစ်ဆေးပေးပါမည်။")
 
-    await context.bot.send_photo(
-        chat_id=PAYMENT_CHANNEL_ID,
-        photo=update.message.photo[-1].file_id,
-        caption=caption
-    )
-
-    await update.message.reply_text("✅ Screenshot ပို့ပြီးပါပြီ\n⏳ Admin စစ်ဆေးနေပါသည်")
-
-# ================= Usersend =================
-async def forward_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    user = msg.from_user
-
-    header = (
-        "📩 User Message\n\n"
-        f"👤 ID: {user.id}\n"
-        f"👤 Name: {user.full_name}\n"
-        f"👤 Username: @{user.username}" if user.username else "❌ No username"
-    )
-
-    try:
-        if msg.text:
-            await context.bot.send_message(
-                chat_id=LOG_CHANNEL_ID,
-                text=f"{header}\n\n📝 Message:\n{msg.text}"
-            )
-        else:
-            await msg.copy(
-                chat_id=LOG_CHANNEL_ID,
-                caption=header
-            )
-    except Exception as e:
-        print("LOG ERROR:", e)
-
-# ================= ADMIN =================
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    uid = int(context.args[0])
-    set_vip(uid, True)
-    await update.message.reply_text(f"✅ VIP Approved {uid}")
-    await context.bot.send_message(uid, "🎉 VIP Activated\n\n Vip Info နှိပ်ပြီး tutorial အတိုင်းဆက်လုက်ပါ")
+    if update.effective_user.id != ADMIN_ID or not context.args: return
+    uid = context.args[0]; set_vip(uid, True)
+    await update.message.reply_text(f"✅ VIP Approved: {uid}")
+    await context.bot.send_message(uid, "🎉 VIP အဖြစ် အတည်ပြုပြီးပါပြီ။\n\n Hiddify Conf ထုတ်ယူနိုင်ပါပြီ။\n vip info နှိပ်ရင်စစ်ကြည့်နိုင်ပါသည်။ ")
 
 async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    uid = int(context.args[0])
-    set_vip(uid, False)
-    await update.message.reply_text(f"❌ VIP Rejected {uid}")
-    await context.bot.send_message(uid, "❌ VIP Rejected \n\n သင့်ကို ကျွန်ုပ်တို့အသင်းမှ Vip အဖြင့်ဖယ်ရှားလိုက်ပါသည်။")
-    
-async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
+    if update.effective_user.id != ADMIN_ID or not context.args: return
+    uid = context.args[0]; set_vip(uid, False)
+    await update.message.reply_text(f"❌ VIP Rejected: {uid}")
+    await context.bot.send_message(uid, "❌ သင်၏ VIP လျှောက်ထားမှု ငြင်းပယ်ခံရပါသည်။")
 
+async def viplist(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID: return
     cur.execute("SELECT user_id FROM users WHERE vip=1")
     rows = cur.fetchall()
-
     if not rows:
         await update.message.reply_text("❌ VIP User မရှိသေးပါ")
         return
-
-    text = "💎 VIP USER LIST (ID & Username)\n\n"
-
+    text = "💎 **VIP USER LIST**\n\n"
     for i, (uid,) in enumerate(rows, start=1):
         try:
             chat = await context.bot.get_chat(int(uid))
-            username = f"@{chat.username}" if chat.username else "❌ Not set"
-        except:
-            username = "❌ Not found"
+            name = chat.full_name
+            uname = f"@{chat.username}" if chat.username else "No Username"
+        except: name, uname = "Unknown", "N/A"
+        text += f"{i}. 🆔 `{uid}` | {name} ({uname})\n"
+    await update.message.reply_text(text, parse_mode="Markdown")
 
-        text += f"{i}. 👤 ID: {uid}\n   👤 Username: {username}\n\n"
-
-        # Telegram message length safety
-        if len(text) > 3500:
-            await update.message.reply_text(text)
-            text = ""
-
-    if text:
-        await update.message.reply_text(text)
-        
-async def vipmsg(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    if not update.message.reply_to_message:
-        await update.message.reply_text(
-            "❗ အသုံးပြုပုံ:\n"
-            "ပို့ချင်တဲ့ message / photo / file ကို reply လုပ်ပြီး\n"
-            "/vipmsg လို့ရိုက်ပါ"
-        )
-        return
-
-    src = update.message.reply_to_message
-
-    cur.execute("SELECT user_id FROM users WHERE vip=1")
-    rows = cur.fetchall()
-
-    if not rows:
-        await update.message.reply_text("❌ VIP User မရှိပါ")
-        return
-
-    sent = 0
-    failed = 0
-
-    for (uid,) in rows:
-        try:
-            await src.copy(chat_id=int(uid))
-            sent += 1
-        except:
-            failed += 1
-
-    await update.message.reply_text(
-        f"✅ VIP Broadcast Done\n\n"
-        f"📤 Sent: {sent}\n"
-        f"❌ Failed: {failed}"
-    )
-    
 async def allmsg(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    if not update.message.reply_to_message:
-        await update.message.reply_text(
-            "❗ အသုံးပြုပုံ\n"
-            "ပို့ချင်တဲ့ message / photo / video ကို reply လုပ်ပြီး\n"
-            "/allmsg လို့ရိုက်ပါ"
-        )
-        return
-
-    src = update.message.reply_to_message
-
-    cur.execute("SELECT user_id FROM users")
-    users = cur.fetchall()
-
+    if update.effective_user.id != ADMIN_ID or not update.message.reply_to_message: return
+    cur.execute("SELECT user_id FROM users"); users = cur.fetchall()
     sent = 0
-    failed = 0
-
     for (uid,) in users:
-        try:
-            await src.copy(chat_id=int(uid))
-            sent += 1
-        except:
-            failed += 1
+        try: await update.message.reply_to_message.copy(chat_id=int(uid)); sent += 1
+        except: continue
+    await update.message.reply_text(f"📢 Broadcast Done. Sent: {sent}")
 
-    await update.message.reply_text(
-        f"📢 Broadcast Finished\n\n"
-        f"✅ Sent: {sent}\n"
-        f"❌ Failed: {failed}"
-    )
-    
 async def send_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    if not update.message.reply_to_message:
-        await update.message.reply_text(
-            "❗ အသုံးပြုပုံ:\n"
-            "ပို့ချင်တဲ့ message ကို reply လုပ်ပြီး\n"
-            "/send user_id လို့ရိုက်ပါ"
-        )
-        return
-
-    if not context.args:
-        await update.message.reply_text("❗ user_id ထည့်ပါ")
-        return
-
-    uid = int(context.args[0])
-    src = update.message.reply_to_message
-
+    if update.effective_user.id != ADMIN_ID or not update.message.reply_to_message or not context.args: return
     try:
-        await src.copy(chat_id=uid)
-        await update.message.reply_text(f"✅ {uid} ဆီပို့ပြီးပါပြီ")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Failed: {e}")
+        await update.message.reply_to_message.copy(chat_id=int(context.args[0]))
+        await update.message.reply_text("✅ Message Sent.")
+    except Exception as e: await update.message.reply_text(f"❌ Failed: {e}")
 
 # ================= MAIN =================
 if __name__ == "__main__":
-    setup_wgcf()
     app = ApplicationBuilder().token(TOKEN).build()
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("approvevip", approvevip))
     app.add_handler(CommandHandler("rejectvip", rejectvip))
     app.add_handler(CommandHandler("viplist", viplist))
-    app.add_handler(CommandHandler("vipmsg", vipmsg))
     app.add_handler(CommandHandler("allmsg", allmsg))
     app.add_handler(CommandHandler("send", send_user))
     app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
-
-    print("🤖 BOT RUNNING (ENDPOINT FIXED)")
+    print("🤖 BOT STARTED")
     app.run_polling()
