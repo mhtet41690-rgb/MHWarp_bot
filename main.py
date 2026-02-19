@@ -41,7 +41,7 @@ VIP_PRICE = (
     "💎 တစ်ခါဝယ်ရုံဖြင့် တစ်သက်စာ အသုံးပြုရမည်။\n"
     "🎊 File ban ခံရပါက VIP များအတွက် အသစ်ပြန်ပေးပါမည်။\n\n"
     "💵 *Price: 3000 Ks Lifetime*\n"
-    "📆 VIP -> ၁ ရက် ၁ ခါ ထုတ်ယူနိုင်သည်"
+    "📆 VIP ->Vpn File ၁ ရက် ၁ ခါ ထုတ်ယူနိုင်သည်"
 )
 
 VIP_TUTORIAL_VIDEO = "BAACAgUAAxkBAAIB9WmS1Mwvr42_VTJgDBs_nD8DN5-lAAL0GAACIkeZVPJRAAF0x4zJMzoE"
@@ -49,10 +49,11 @@ VIP_TUTORIAL_TEXT = "📘 *VIP Tutorial*\n\n1️⃣ V2box App Install ပါ\n2�
 
 PAYMENT_INFO = (
     "💳 *Payment Info*\n\n"
-    "🏦 Kpay (09982383696)\n"
-    "🏦 Wave Money (09972752831)\n\n"
+    "🏦 Kpay : Win Htut Kyaw \n\n(09982383696)\n"
+    "🏦 Wave Money : Mg Kyaw Kyaw Naing \n\n(09972752831)\n\n"
     "💵 Amount : 3000 Ks\n"
-    "📸 ပြေစာပုံ ပို့ပေးပါ။ Admin မှ စစ်ဆေးပေးပါမည်။"
+    "📸 ပြေစာပုံ ပို့ပေးပါ။ Admin မှ စစ်ဆေးပေးပါမည်။\n"
+    "‼️ပြေစာပုံသာ ပို့ရန်‼️"
 )
 
 # ================= KEYBOARD =================
@@ -171,10 +172,10 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text in ["⚡ Generate WARP", "🧩 Hiddify Conf"]:
         if not await is_joined_channel(context.bot, uid):
-            await update.message.reply_text(f"🚫 Channel Join လုပ်ပါ\nhttps://t.me/{CHANNEL_USERNAME}"); return
+            await update.message.reply_text(f"🚫 Channel Join ပြီးမှထုတ်ယူနိုင်ပါမည်။\nhttps://t.me/{CHANNEL_USERNAME}"); return
 
         if text == "🧩 Hiddify Conf" and not user["vip"] and uid != ADMIN_ID:
-            await update.message.reply_text("🚫 Hiddify သည် VIP သီးသန့်ဖြစ်ပါသည်။", reply_markup=VIP_FREE_KB); return
+            await update.message.reply_text("🚫 Hiddify သည် VIP သီးသန့်ဖြစ်ပါသည်။\n\n ios နှင့် android တွင် \n တစ်ခါချိတ်ထားရုံဖြင့် ထပ်ချိတ်ရန်မလိုတော့ပါ\n တစ်ခါဝယ်ထားရုံဖြင့် \nကုန်ရက်မရှိအသုံးပြုနိုင်ပါမည်", reply_markup=VIP_FREE_KB); return
 
         if uid != ADMIN_ID and user["last"]:
             limit = 1 if user["vip"] else 7
