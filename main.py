@@ -244,24 +244,27 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     uid = user.id
-
-    # Admin က Command ရိုက်တာမျိုးဆိုရင် Channel ထဲမပို့အောင် ကာကွယ်ရန်
-    if update.message.text and update.message.text.startswith('/'):
-        return
-
+    
+    # User ရဲ့ နာမည်ကို ယူခြင်း
     full_name = user.full_name
-    username = f"@{user.username}" if user.username else "မရှိပါ"
+    
+    # Username ရှိမရှိ စစ်ဆေးခြင်း
+    if user.username:
+        username_display = f"@{user.username}"
+    else:
+        username_display = "မရှိပါ"
 
     caption = (
-        "📩 *New User Message/Payment*\n\n"
-        f"👤 **Name:** {full_name}\n"
-        f"🆔 **ID:** `{uid}`\n"
-        f"🔗 **Username:** {username}\n\n"
-        f"Approve: `/approvevip {uid}`\n"
-        f"Reject: `/rejectvip {uid}`"
+        "💰 *New Message Received*\n\n"
+        f"👤 **Name:** {full_name}\n"  # ဒီနေရာမှာ နာမည်ပေါ်ပါမယ်
+        f"🔗 **Username:** {username_display}\n" # ဒီနေရာမှာ @username ပေါ်ပါမယ်
+        f"🆔 **User ID:** `{uid}`\n\n"
+        f"✅ Approve: `/approvevip {uid}`\n"
+        f"❌ Reject: `/rejectvip {uid}`"
     )
 
     try:
+        # User ပို့လိုက်တဲ့ message (ပုံ သို့မဟုတ် စာ) ကို caption နဲ့တူတူ channel ဆီ copy ပို့ခြင်း
         await update.message.copy(
             chat_id=PAYMENT_CHANNEL_ID, 
             caption=caption, 
@@ -269,7 +272,7 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await update.message.reply_text("✅ ပေးပို့မှု အောင်မြင်ပါသည်။ Admin စစ်ဆေးပေးပါမည်။")
     except Exception as e:
-        print(f"Error forwarding message: {e}")
+        print(f"Error: {e}")
 
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
