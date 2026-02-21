@@ -403,6 +403,25 @@ async def send_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ Message Sent.")
     except Exception as e: await update.message.reply_text(f"❌ Failed: {e}")
 
+async def backup_db(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    
+    try:
+        # DB ဖိုင်ရှိမရှိ အရင်စစ်ပြီး ပို့ပေးမယ်
+        if os.path.exists(DB_PATH):
+            await update.message.reply_document(
+                document=open(DB_PATH, "rb"),
+                caption=f"📂 Database Backup\n📅 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+        else:
+            await update.message.reply_text("❌ Database file not found.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Backup failed: {e}")
+
+# အောက်ဆုံးက Main အပိုင်းမှာ ဒါလေး ထည့်ပေးဖို့ မမေ့ပါနဲ့
+# 
+
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
     
@@ -414,6 +433,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("vipmsg", vipmsg))
     app.add_handler(CommandHandler("allmsg", allmsg))
     app.add_handler(CommandHandler("send", send_user))
+    app.add_handler(CommandHandler("backup", backup_db))
 
     # ၂။ Menu Buttons စာသားတွေကို ဒုတိယ ဦးစားပေးထားပါ
     # ဒီကောင်က MessageText ဖြစ်လို့ payment_photo ရဲ့ အပေါ်မှာ ရှိရပါမယ်
