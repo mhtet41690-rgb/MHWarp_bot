@@ -37,15 +37,11 @@ API = "https://api.cloudflareclient.com/v0i1909051800"
 # ================= MESSAGES =================
 VIP_PRICE = (
     "🥰 *VIP Lifetime* 🥰\n\n"
-    "💐 စင်္ကာပူ၊ ထိုင်း အစရှိသည့် server များကို lifetime အသုံးပြုနိုင်ပါမည်။\n"
     "💎 တစ်ခါဝယ်ရုံဖြင့် တစ်သက်စာ အသုံးပြုရမည်။\n"
     "🎊 File ban ခံရပါက VIP များအတွက် အသစ်ပြန်ပေးပါမည်။\n\n"
     "💵 *Price: 3000 Ks Lifetime*\n"
     "📆 VIP ->Vpn File ၁ ရက် ၁ ခါ ထုတ်ယူနိုင်သည်"
 )
-
-VIP_TUTORIAL_VIDEO = "BAACAgUAAxkBAAIB9WmS1Mwvr42_VTJgDBs_nD8DN5-lAAL0GAACIkeZVPJRAAF0x4zJMzoE"
-VIP_TUTORIAL_TEXT = "📘 *VIP Tutorial*\n\n1️⃣ V2box App Install ပါ\n2️⃣ https://mhwarp.netlify.app/mh.txt \n Video အတိုင်း Sub link ထည့်သွင်းပါ"
 
 PAYMENT_INFO = (
     "💳 *Payment Info*\n\n"
@@ -195,10 +191,20 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "📢 Join Channel":
         await update.message.reply_text(f"https://t.me/{CHANNEL_USERNAME}"); return
     elif text == "💎 VIP Info":
+        # User ရဲ့ Status ကို စစ်ဆေးမယ်
+        status_text = "💎 **Your VIP Status**\n\n"
         if user["vip"]:
-            await context.bot.send_video(chat_id=uid, video=VIP_TUTORIAL_VIDEO)
-            await update.message.reply_text(VIP_TUTORIAL_TEXT, parse_mode="Markdown")
-        else: await update.message.reply_text(VIP_PRICE, reply_markup=VIP_FREE_KB, parse_mode="Markdown")
+            status_text += "✅ Status: **VIP User (Lifetime)**\n"
+            status_text += "🎊 သင်သည် VIP ဝန်ဆောင်မှုများကို အကန့်အသတ်မရှိ အသုံးပြုနိုင်ပါပြီ။"
+        else:
+            status_text += "❌ Status: **Free User**\n\n"
+            status_text += VIP_PRICE # အပေါ်မှာသတ်မှတ်ထားတဲ့ ဈေးနှုန်း message ပြမယ်
+
+        # VIP status ပြသခြင်း (Tutorial video မပါတော့ပါ)
+        if not user["vip"]:
+            await update.message.reply_text(status_text, reply_markup=VIP_FREE_KB, parse_mode="Markdown")
+        else:
+            await update.message.reply_text(status_text, reply_markup=MAIN_KB, parse_mode="Markdown")
         return
     elif text == "💰 Buy VIP":
         await update.message.reply_text(PAYMENT_INFO, reply_markup=VIP_BACK_KB, parse_mode="Markdown"); return
@@ -206,22 +212,35 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🏠 Main Menu", reply_markup=MAIN_KB); return
 
     if text in ["⚡ Generate WARP", "🧩 Hiddify Conf"]:
+        # ၁။ Channel Join ထားခြင်း ရှိမရှိ အရင်စစ်မယ်
         if not await is_joined_channel(context.bot, uid):
-            await update.message.reply_text(f"🚫 Channel Join ပြီးမှထုတ်ယူနိုင်ပါမည်။\nhttps://t.me/{CHANNEL_USERNAME}"); return
+            await update.message.reply_text(f"🚫 Channel Join ပြီးမှထုတ်ယူနိုင်ပါမည်။\nhttps://t.me/{CHANNEL_USERNAME}")
+            return
 
+        # ၂။ VIP မဟုတ်ရင် (Admin လည်းမဟုတ်ရင်) နှစ်ခုလုံး ပိတ်ထားမယ်
+        if not user["vip"] and uid != ADMIN_ID:
+            msg = (
+                "🚫 **Key များ limit ပြည့်သွားသောကြောင့် အခမဲ့ ထုတ်ယူ၍မရနိုင်တော့ပါ။**\n\n"
+                "✅ လိုင်းပိုမိုကောင်းမွန်ပြီး တည်ငြိမ်သော VPN Key များ ထုတ်ယူရန်အတွက် \n"
+                "VIP Key Lifetime ကုန်ရက်မရှိ ကို 3000ks ဖြင့် ဝယ်ယူနိုင်ပါသည်"
+            )
+            await update.message.reply_text(msg, reply_markup=VIP_FREE_KB, parse_mode="Markdown")
+            return
+
+        # ၃။ VIP user များအတွက် Time Limit စစ်ဆေးခြင်း
         col_to_check = "last_warp" if text == "⚡ Generate WARP" else "last_hiddify"
         last_action_time = user[col_to_check]
 
-        if text == "🧩 Hiddify Conf" and not user["vip"] and uid != ADMIN_ID:
-            await update.message.reply_text("🚫 Hiddify သည် VIP သီးသန့်အတွတ်ဖြစ်ပါသည်။ \n\n✅ios နှင့် android များအတွတ် ချိတ်ရလွယ်ကူပြီး\n🧑‍🦱ခနခနပြန်ချိတ်စရာမလိုပါ။\n\n🎉vip lifetime ကို 3000ks ဖြင့် ဝယ်ယူနိုင်ပါသည်", reply_markup=VIP_FREE_KB); return
-
         if uid != ADMIN_ID and last_action_time:
-            limit = 1 if user["vip"] else 7
+            limit = 1  # VIP ဆိုရင် ၁ ရက် ၁ ခါပဲ ထုတ်ခွင့်ပြုမယ်
             nt = datetime.fromtimestamp(last_action_time) + timedelta(days=limit)
             if now < nt:
-                await update.message.reply_text(f"⏳ {text} အတွက် ကျန်ချိန်: {remaining(int((nt-now).total_seconds()))}"); return
+                await update.message.reply_text(f"⏳ {text} အတွက် ကျန်ချိန်: {remaining(int((nt-now).total_seconds()))}")
+                return
 
+        # ၄။ အားလုံးအိုကေရင် Generate လုပ်ပေးမယ်
         status = await update.message.reply_text("⚙️ လုပ်ဆောင်နေပါသည်...")
+        # ... (ကျန်တဲ့ generate logic တွေ ဆက်သွားပါမယ်)
         try:
             if text == "🧩 Hiddify Conf":
                 b64_str = generate_hiddify_base64()
