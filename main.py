@@ -156,15 +156,23 @@ def generate_hiddify_base64():
     res = api_call("PATCH", f"reg/{cid}", token, {"warp_enabled": True})
     cfg = res["result"]["config"]
     conf = {
-        "outbounds": [{
-            "tag": "WARP", "mtu": 1280, "private_key": priv, "type": "wireguard",
-            "reserved": list(base64.b64decode(cfg["client_id"])),
-            "local_address": [f'{cfg["interface"]["addresses"]["v4"]}/32', f'{cfg["interface"]["addresses"]["v6"]}/128'],
-            "peer_public_key": cfg["peers"][0]["public_key"],
-            "server": "162.159.192.1", "server_port": 500,
-            "fake_packets": "5-10", "fake_packets_size": "40-100", "fake_packets_mode": "m4"
-        }]
+  "outbounds": [
+    {
+      "tag": "WARP",
+      "type": "wireguard",
+      "private_key": priv,
+      "server": "162.159.192.1",
+      "server_port": 500,
+      "peer_public_key": cfg["peers"][0]["public_key"],
+      "local_address": [
+        "172.16.0.2/32",
+        "2606:4700:110:8488:6b29:b867:a0f4:afb4/128"
+      ],
+      "reserved": [102, 246, 136],
+      "mtu": 1280
     }
+  ]
+}
     profile = "//profile-title: tg @mhwarp\n" + json.dumps(conf, separators=(",", ":"))
     return base64.b64encode(profile.encode()).decode()
 
