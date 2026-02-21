@@ -226,7 +226,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if text == "🧩 Hiddify Conf":
                 b64_str = generate_hiddify_base64()
                 await update.message.reply_text(f"`{b64_str}`", parse_mode="MarkdownV2")
-                guide = "👆 အပေါ်က code ကို copy ယူပါ။\n\nHiddify App ထဲဝင်ပြီး **New Profile** -> **Add From Clipboard** နှိပ်ပါ။"
+                guide = "👆 အပေါ်က code ကို copy ယူပါ။\n\nHiddify App ထဲဝင်ပြီး **➕အပေါင်း ခလုပ်နှိပ်ပါ** -> **Clipboard** နှိပ်ပါ။\n\n Tap To Connect နှိပ်ပြီးခနစောင့်ပါ"
                 await update.message.reply_text(guide, parse_mode="Markdown")
             else:
                 setup_wgcf(); reset_wgcf()
