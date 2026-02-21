@@ -244,35 +244,42 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     uid = user.id
-    
-    # User ရဲ့ နာမည်ကို ယူခြင်း
     full_name = user.full_name
-    
-    # Username ရှိမရှိ စစ်ဆေးခြင်း
-    if user.username:
-        username_display = f"@{user.username}"
-    else:
-        username_display = "မရှိပါ"
+    username = f"@{user.username}" if user.username else "မရှိပါ"
 
-    caption = (
-        "💰 *New Message Received*\n\n"
-        f"👤 **Name:** {full_name}\n"  # ဒီနေရာမှာ နာမည်ပေါ်ပါမယ်
-        f"🔗 **Username:** {username_display}\n" # ဒီနေရာမှာ @username ပေါ်ပါမယ်
-        f"🆔 **User ID:** `{uid}`\n\n"
-        f"✅ Approve: `/approvevip {uid}`\n"
-        f"❌ Reject: `/rejectvip {uid}`"
+    # Admin အတွက် အချက်အလက် caption စာသား
+    admin_info = (
+        "📩 *New Message Received*\n\n"
+        f"👤 **Name:** {full_name}\n"
+        f"🔗 **Username:** {username}\n"
+        f"🆔 **ID:** `{uid}`\n\n"
+        f"Approve: `/approvevip {uid}`\n"
+        f"Reject: `/rejectvip {uid}`"
     )
 
     try:
-        # User ပို့လိုက်တဲ့ message (ပုံ သို့မဟုတ် စာ) ကို caption နဲ့တူတူ channel ဆီ copy ပို့ခြင်း
-        await update.message.copy(
-            chat_id=PAYMENT_CHANNEL_ID, 
-            caption=caption, 
-            parse_mode="Markdown"
-        )
+        # ၁။ အကယ်၍ user ပို့လိုက်တာ စာသားသက်သက် (Text) ဖြစ်နေရင်
+        if update.message.text:
+            user_msg = update.message.text
+            final_text = f"{admin_info}\n\n💬 *User Message:*\n{user_msg}"
+            await context.bot.send_message(
+                chat_id=PAYMENT_CHANNEL_ID, 
+                text=final_text, 
+                parse_mode="Markdown"
+            )
+        
+        # ၂။ အကယ်၍ user ပို့လိုက်တာ ပုံ (Photo) သို့မဟုတ် ဖိုင် (Document/Video) ဖြစ်နေရင်
+        else:
+            await update.message.copy(
+                chat_id=PAYMENT_CHANNEL_ID, 
+                caption=admin_info, 
+                parse_mode="Markdown"
+            )
+            
         await update.message.reply_text("✅ ပေးပို့မှု အောင်မြင်ပါသည်။ Admin စစ်ဆေးပေးပါမည်။")
+
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error forwarding message: {e}")
 
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
