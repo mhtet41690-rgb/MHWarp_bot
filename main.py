@@ -244,12 +244,17 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     uid = user.id
+    
+    # Menu Button စာသားတွေဆိုရင် Channel ထဲမပို့အောင် စစ်ထုတ်ခြင်း
+    menu_buttons = ["⚡ Generate WARP", "🧩 Hiddify Conf", "💎 VIP Info", "📢 Join Channel", "💰 Buy VIP", "🔙 Back"]
+    if update.message.text in menu_buttons:
+        return
+
     full_name = user.full_name
-    # Username ရှိမရှိ စစ်ဆေးပြီး မရှိလျှင် 'မရှိပါ' ဟု ပြရန်
     username = f"@{user.username}" if user.username else "မရှိပါ"
 
     caption = (
-        "💰 *VIP Payment Request*\n\n"
+        "💰 *New User Message/Payment*\n\n"
         f"👤 **Name:** {full_name}\n"
         f"🆔 **ID:** `{uid}`\n"
         f"🔗 **Username:** {username}\n\n"
@@ -258,15 +263,15 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     try:
-        await context.bot.send_photo(
+        # User ပို့လိုက်တဲ့ message (ပုံ၊ စာ၊ ဖိုင်) ကို copy ကူးပြီး channel ထဲ ပို့ပေးမည်
+        await update.message.copy(
             chat_id=PAYMENT_CHANNEL_ID, 
-            photo=update.message.photo[-1].file_id, 
             caption=caption, 
             parse_mode="Markdown"
         )
-        await update.message.reply_text("✅ ပြေစာ ပို့ပြီးပါပြီ။ Admin စစ်ဆေးပေးပါမည်။")
+        await update.message.reply_text("✅ ပေးပို့မှု အောင်မြင်ပါသည်။ Admin မှ စစ်ဆေးပေးပါမည်။")
     except Exception as e:
-        print(f"Error sending payment photo: {e}")
+        print(f"Error sending to channel: {e}")
 
 async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
@@ -365,6 +370,8 @@ async def send_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
+    
+    # Commands
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("approvevip", approvevip))
     app.add_handler(CommandHandler("rejectvip", rejectvip))
@@ -372,7 +379,12 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("vipmsg", vipmsg))
     app.add_handler(CommandHandler("allmsg", allmsg))
     app.add_handler(CommandHandler("send", send_user))
-    app.add_handler(MessageHandler(filters.PHOTO, payment_photo))
+    app.add_handler(MessageHandler(
+        (filters.PHOTO | filters.Document.ALL | filters.VIDEO | filters.TEXT) & ~filters.COMMAND, 
+        payment_photo
+    ))
+
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu))
+    
     print("🤖 BOT STARTED")
     app.run_polling()
