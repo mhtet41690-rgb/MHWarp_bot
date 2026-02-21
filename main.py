@@ -195,7 +195,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         status_text = "💎 **Your VIP Status**\n\n"
         if user["vip"]:
             status_text += "✅ Status: **VIP User (Lifetime)**\n"
-            status_text += "🎊 သင်သည် VIP ဝန်ဆောင်မှုများကို အကန့်အသတ်မရှိ အသုံးပြုနိုင်ပါပြီ။"
+            status_text += "🎊 သင်သည် VIP ဝန်ဆောင်မှုများကို အသုံးပြုနိုင်ပါပြီ။"
         else:
             status_text += "❌ Status: **Free User**\n\n"
             status_text += VIP_PRICE # အပေါ်မှာသတ်မှတ်ထားတဲ့ ဈေးနှုန်း message ပြမယ်
@@ -312,7 +312,7 @@ async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
     uid = context.args[0]; set_vip(uid, True)
     await update.message.reply_text(f"✅ VIP Approved: {uid}")
-    await context.bot.send_message(uid, "🎉 VIP Activated! Hiddify Conf ထုတ်ယူနိုင်ပါပြီ။\n\nVip info နှိပ်၍ Tutorial ကြည့်နိုင်ပါသည်")
+    await context.bot.send_message(uid, "🎉 VIP Activated! Conf File ထုတ်ယူနိုင်ပါပြီ။")
 
 async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
