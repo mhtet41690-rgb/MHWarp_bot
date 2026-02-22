@@ -222,7 +222,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg = (
                 "🚫 **Key များ limit ပြည့်သွားသောကြောင့် အခမဲ့ ထုတ်ယူ၍မရနိုင်တော့ပါ။**\n\n"
                 "✅ လိုင်းပိုမိုကောင်းမွန်ပြီး တည်ငြိမ်စွာအသုံးပြုနိုင်ရန် \n\n"
-                "VIP Key Lifetime ကုန်ရက်မရှိ ကို 3000ks ဖြင့် ဝယ်ယူနိုင်ပါသည်\nChannel ထဲတွင် အသုံးပြုသူများ၏ review ကို ကြည့်နိုင်ပါမည်။\n vip user များတွတ် key ကို isp ဘတ်မှ ban ခဲ့ပါက အသစ်ပြန်ချိန်းပေးမည်ဖြစ်ကြောင်း"
+                "VIP Key Lifetime ကုန်ရက်မရှိ ကို 3000ks ဖြင့် ဝယ်ယူနိုင်ပါသည်\nChannel ထဲတွင် အသုံးပြုသူများ၏ review ကို ကြည့်နိုင်ပါမည်။\n vip user များတွတ် key ကို isp ဘတ်မှ ban ခဲ့ပါက အသစ်ပြန်ချိန်းပေးမည်ဖြစ်ကြောင်း\n\n 🥰ဝယ်ယူမည်ဆိုပါက အောက်က Buy Vip ခလုပ်ကိုနှိပ်၍ ဝယ်ယူနိုင်ပါတယ်ဗျ"
             )
             await update.message.reply_text(msg, reply_markup=VIP_FREE_KB, parse_mode="Markdown")
             return
