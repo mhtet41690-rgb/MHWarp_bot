@@ -50,7 +50,9 @@ PAYMENT_INFO = (
     "🏦 Wave Money : Mg Kyaw Kyaw Naing\n"
     "📞 09972752831\n\n"
     "💵 Amount : 3000 Ks\n"
-    "@mhwarpadmin သို့ ပြေစာ ပုံ ပို့ပေးပါရန်"
+    "📷 ပြေစာပုံ ကို bot မှာ ပို့ပေးပါ ။ admin မှ စစ်ဆေးပေးသွားပါမည်။\n"
+    "မိနစ် ၃၀ အတွင်း vip မဖြစ်ပါက\n admin @mhwarpadmin သို့ဆက်သွယ်ပေးပါ။"
+    
 )
 
 # ================= KEYBOARD =================
