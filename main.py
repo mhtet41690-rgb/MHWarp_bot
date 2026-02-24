@@ -50,9 +50,7 @@ PAYMENT_INFO = (
     "🏦 Wave Money : Mg Kyaw Kyaw Naing\n"
     "📞 09972752831\n\n"
     "💵 Amount : 3000 Ks\n"
-    "📸 ပြေစာပုံ ပို့ပေးပါ။ Admin မှ စစ်ဆေးပေးပါမည်။\n"
-    "‼️ပြေစာပုံ ပို့ပြီး 2နာရီအတွင်း vip မဖြစ်သေးပါက\n"
-    "@mhwarpadmin သို့ ဆက်သွယ်ပေးပါရန်"
+    "@mhwarpadmin သို့ ပြေစာ ပုံ ပို့ပေးပါရန်"
 )
 
 # ================= KEYBOARD =================
@@ -304,7 +302,7 @@ async def payment_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown"
             )
             
-        await update.message.reply_text("✅ ပေးပို့မှု အောင်မြင်ပါသည်။ Admin စစ်ဆေးပေးပါမည်။")
+        await update.message.reply_text("Welcome...")
 
     except Exception as e:
         print(f"Error forwarding message: {e}")
@@ -313,7 +311,7 @@ async def approvevip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
     uid = context.args[0]; set_vip(uid, True)
     await update.message.reply_text(f"✅ VIP Approved: {uid}")
-    await context.bot.send_message(uid, "🎉 VIP Activated! Conf File ထုတ်ယူနိုင်ပါပြီ။")
+    await context.bot.send_message(uid, "🎉 VIP Activated! Conf File ထုတ်ယူနိုင်ပါပြီ။\n\n ( /start ) 👈 နှိပ်ပေးပါ")
 
 async def rejectvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID or not context.args: return
