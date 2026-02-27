@@ -40,7 +40,7 @@ VIP_PRICE = (
     "💎 တစ်ခါဝယ်ရုံဖြင့် တစ်သက်စာ အသုံးပြုရမည်။\n"
     "🎊 File ban ခံရပါက VIP များအတွက် အသစ်ပြန်ပေးပါမည်။\n\n"
     "💵 *Price: 3000 Ks Lifetime*\n"
-    "📆 VIP ->Vpn File ၁ ရက် ၁ ခါ ထုတ်ယူနိုင်သည်"
+    "📆 VIP ->Vpn Key ၁ ရက် ၁ ခါ ထုတ်ယူနိုင်သည်"
 )
 
 PAYMENT_INFO = (
@@ -58,7 +58,7 @@ PAYMENT_INFO = (
 
 # ================= KEYBOARD =================
 MAIN_KB = ReplyKeyboardMarkup(
-    [["⚡ Generate WARP", "🧩 Hiddify Conf"], ["💎 VIP Info", "📢 Join Channel"]],
+    [["⚡ Wireguard Key", "🧩 Hiddify Key"], ["💎 VIP Info", "📢 Join Channel"]],
     resize_keyboard=True
 )
 VIP_FREE_KB = ReplyKeyboardMarkup([["💰 Buy VIP"], ["🔙 Back"]], resize_keyboard=True)
@@ -194,7 +194,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"https://t.me/{CHANNEL_USERNAME}"); return
     elif text == "💎 VIP Info":
         # User ရဲ့ Status ကို စစ်ဆေးမယ်
-        status_text = "💎 **Your VIP Status**\n\n"
+        status_text = "💎 **Your Status**\n\n"
         if user["vip"]:
             status_text += "✅ Status: **VIP User (Lifetime)**\n"
             status_text += "🎊 သင်သည် VIP ဝန်ဆောင်မှုများကို အသုံးပြုနိုင်ပါပြီ။"
@@ -213,7 +213,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "🔙 Back":
         await update.message.reply_text("🏠 Main Menu", reply_markup=MAIN_KB); return
 
-    if text in ["⚡ Generate WARP", "🧩 Hiddify Conf"]:
+    if text in ["⚡ Wireguard Key", "🧩 Hiddify Key"]:
         # ၁။ Channel Join ထားခြင်း ရှိမရှိ အရင်စစ်မယ်
         if not await is_joined_channel(context.bot, uid):
             await update.message.reply_text(f"🚫 Channel Join ပြီးမှထုတ်ယူနိုင်ပါမည်။\nhttps://t.me/{CHANNEL_USERNAME}")
@@ -224,13 +224,13 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg = (
                 "🚫 **Key များ limit ပြည့်သွားသောကြောင့် အခမဲ့ ထုတ်ယူ၍မရနိုင်တော့ပါ။**\n\n"
                 "✅ လိုင်းပိုမိုကောင်းမွန်ပြီး တည်ငြိမ်စွာအသုံးပြုနိုင်ရန် \n\n"
-                "VIP Key Lifetime ကုန်ရက်မရှိ ကို 3000ks ဖြင့် ဝယ်ယူနိုင်ပါသည်\nChannel ထဲတွင် အသုံးပြုသူများ၏ review ကို ကြည့်နိုင်ပါမည်။\n vip user များတွတ် key ကို isp ဘတ်မှ ban ခဲ့ပါက အသစ်ပြန်ချိန်းပေးမည်ဖြစ်ကြောင်း\n\n 🥰ဝယ်ယူမည်ဆိုပါက အောက်က Buy Vip ခလုပ်ကိုနှိပ်၍ ဝယ်ယူနိုင်ပါတယ်ဗျ"
+                "💎VIP Key Lifetime ကုန်ရက်မရှိ ကို 3000ks ဖြင့် ဝယ်ယူနိုင်ပါသည်\n\n✍️Channel ထဲတွင် အသုံးပြုသူများ၏ review ကို ကြည့်နိုင်ပါမည်။\n\n💎 vip user များတွတ် key ကို isp ဘတ်မှ ban ခဲ့ပါက အသစ်ပြန်ချိန်းပေးမည်ဖြစ်ကြောင်း\n\n 🥰ဝယ်ယူမည်ဆိုပါက အောက်က Buy Vip ခလုပ်ကိုနှိပ်၍ ဝယ်ယူနိုင်ပါတယ်ဗျ"
             )
             await update.message.reply_text(msg, reply_markup=VIP_FREE_KB, parse_mode="Markdown")
             return
 
         # ၃။ VIP user များအတွက် Time Limit စစ်ဆေးခြင်း
-        col_to_check = "last_warp" if text == "⚡ Generate WARP" else "last_hiddify"
+        col_to_check = "last_warp" if text == "⚡ Wireguard Key" else "last_hiddify"
         last_action_time = user[col_to_check]
 
         if uid != ADMIN_ID and last_action_time:
@@ -244,7 +244,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         status = await update.message.reply_text("⚙️ လုပ်ဆောင်နေပါသည်...")
         # ... (ကျန်တဲ့ generate logic တွေ ဆက်သွားပါမယ်)
         try:
-            if text == "🧩 Hiddify Conf":
+            if text == "🧩 Hiddify Key":
                 b64_str = generate_hiddify_base64()
                 await update.message.reply_text(f"`{b64_str}`", parse_mode="MarkdownV2")
                 guide = "👆 အပေါ်က code ကို copy ယူပါ။\n\nHiddify App ထဲဝင်ပြီး **➕အပေါင်း ခလုပ်နှိပ်ပါ** -> **Clipboard** နှိပ်ပါ။\n\n Tap To Connect နှိပ်ပြီးခနစောင့်ပါ"
@@ -421,8 +421,8 @@ async def backup_db(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Backup failed: {e}")
 
-# အောက်ဆုံးက Main အပိုင်းမှာ ဒါလေး ထည့်ပေးဖို့ မမေ့ပါနဲ့
-# 
+async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👋 မင်္ဂလာပါ\n\n အဆင်မပြေဖြစ်ပါက\nadmin @mhwarpadmin သို့ဆက်သွယ်နိုင်ပါတယ်ဗျ။", reply_markup=MAIN_KB)
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
@@ -436,10 +436,11 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("allmsg", allmsg))
     app.add_handler(CommandHandler("send", send_user))
     app.add_handler(CommandHandler("backup", backup_db))
+    app.add_handler(CommandHandler("admin", admin))
 
     # ၂။ Menu Buttons စာသားတွေကို ဒုတိယ ဦးစားပေးထားပါ
     # ဒီကောင်က MessageText ဖြစ်လို့ payment_photo ရဲ့ အပေါ်မှာ ရှိရပါမယ်
-    menu_filter = filters.Text(["⚡ Generate WARP", "🧩 Hiddify Conf", "💎 VIP Info", "📢 Join Channel", "💰 Buy VIP", "🔙 Back"])
+    menu_filter = filters.Text(["⚡ Wireguard Key", "🧩 Hiddify Key", "💎 VIP Info", "📢 Join Channel", "💰 Buy VIP", "🔙 Back"])
     app.add_handler(MessageHandler(menu_filter, menu))
 
     # ၃။ နောက်ဆုံးမှ User ပို့သမျှ (ပုံ၊ စာ၊ ဖိုင်) ကို ဖမ်းပြီး Channel ပို့ခိုင်းပါ
