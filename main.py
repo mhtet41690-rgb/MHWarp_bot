@@ -156,7 +156,7 @@ def generate_hiddify_base64():
     conf = {
   "outbounds": [
     {
-      "tag": "WARP",
+      "tag": "@mhwarp",
       "type": "wireguard",
       "private_key": priv,
       "server": "162.159.192.1",
