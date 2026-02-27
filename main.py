@@ -145,75 +145,68 @@ def set_last_time(uid, col_name):
     conn.commit()
 
 # ================= CORE LOGIC ===============
-def base64_to_decimal(b64_str):
-    """Base64 string ကို Decimal array (Reserved bytes) အဖြစ်ပြောင်းပေးတဲ့ function"""
-    decoded_bytes = base64.b64decode(b64_str)
-    return [int(b) for b in decoded_bytes]
-
-
 
 def generate_hiddify_base64():
     """
-    Cloudflare API မှ Private Key ကိုယူပြီး 
-    သတ်မှတ်ထားသော WireGuard URI ပုံစံဖြင့် Base64 ထုတ်ပေးသည်။
+    ./wgcf binary ကိုအသုံးပြုပြီး account register လုပ်ကာ 
+    Hiddify သုံးရန် Base64 format ထုတ်ပေးသည်။
     """
-    
-    # 1. Key အသစ်များ Generate လုပ်ခြင်း
-    priv = wg_genkey() 
-    pub = wg_pubkey(priv)
-    
-    # 2. Cloudflare API ကိုခေါ်ပြီး Register လုပ်ခြင်း
-    # ဤအဆင့်သည် Account အသစ်တစ်ခုကို Cloudflare ဘက်တွင် တကယ်မှတ်ပုံတင်ပေးပါသည်
-    reg = api_call("POST", "reg", data={
-        "install_id": "", 
-        "tos": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-        "key": pub, "fcm_token": "", "type": "ios", "locale": "en_US",
-    })
-    
-    cid = reg["result"]["id"]
-    token = reg["result"]["token"]
-    
-    # Account ကို WARP အဖြစ် Activate လုပ်ခြင်း
-    api_call("PATCH", f"reg/{cid}", token, {"warp_enabled": True})
-
-    # 3. သင်သတ်မှတ်ပေးထားသော Default (Fixed) Values များ
-    endpoint = "162.159.192.1:500"
-    fixed_address = "172.16.0.2/32,2606:4700:110:80f7:21d7:933d:4b6b:506f/128"
-    fixed_public_key = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
-    fixed_reserved = "0,0,0"
-    mtu = "1280"
-    hash_id = "1772175787674"
-
-    # 4. URL Safe ဖြစ်အောင် Encode လုပ်ခြင်း
-    encoded_priv = urllib.parse.quote(priv)
-    encoded_addr = urllib.parse.quote(fixed_address)
-    encoded_pub = urllib.parse.quote(fixed_public_key)
-
-    # 5. WireGuard URI အဖြစ် တည်ဆောက်ခြင်း
-    # သင်ပေးထားသည့် format အတိုင်း တိကျစွာ တည်ဆောက်ပါသည်
-    uri_profile = (
-        f"wireguard://{encoded_priv}@{endpoint}"
-        f"?address={encoded_addr}"
-        f"&reserved={fixed_reserved}"
-        f"&publickey={encoded_pub}"
-        f"&mtu={mtu}#{hash_id}"
-    )
-
-    # 6. Profile Title ပေါင်းထည့်ခြင်း (Hiddify တွင် အမည်ပေါ်စေရန်)
-    profile_content = "//profile-title: tg @mhwarp\n" + uri_profile
-    
-    # 7. Base64 အဖြစ် ပြောင်းလဲခြင်း
-    return base64.b64encode(profile_content.encode()).decode()
-
-# --- Program ကို Run ခြင်း ---
-if __name__ == "__main__":
     try:
-        final_base64 = generate_hiddify_base64()
-        print("--- Generated Hiddify Base64 Profile ---")
-        print(final_base64)
-        print("----------------------------------------")
+        # ၁။ အရင်ရှိနေတဲ့ wgcf file တွေကို ရှင်းထုတ်ပါ
+        reset_wgcf()
+        setup_wgcf()
+
+        # ၂။ WGCF ကိုသုံးပြီး Register လုပ်ပါ (wgcf-account.toml ထွက်လာပါမည်)
+        subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True, capture_output=True)
+        
+        # ၃။ WGCF ကနေ Profile ထုတ်ပါ (wgcf-profile.conf ထွက်လာပါမည်)
+        subprocess.run([WGCF_BIN, "generate"], check=True, capture_output=True)
+
+        # ၄။ wgcf-profile.conf ထဲက Private Key ကို ဖတ်ယူပါ
+        priv = ""
+        if os.path.exists("wgcf-profile.conf"):
+            with open("wgcf-profile.conf", "r") as f:
+                for line in f:
+                    if line.startswith("PrivateKey"):
+                        priv = line.split("=")[1].strip()
+                        break
+        
+        if not priv:
+            raise Exception("Private Key ကို wgcf ဖိုင်ထဲတွင် ရှာမတွေ့ပါ။")
+
+        # ၅။ Hiddify အတွက် လိုအပ်သော Fixed Values များ
+        endpoint = FIXED_ENDPOINT  # 162.159.192.1:500
+        fixed_address = "172.16.0.2/32,2606:4700:110:80f7:21d7:933d:4b6b:506f/128"
+        fixed_public_key = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
+        fixed_reserved = "0,0,0" # သို့မဟုတ် wgcf-account.toml ထဲက reserved ကိုသုံးနိုင်သည်
+        mtu = "1280"
+        hash_id = "1772175787674"
+
+        # ၆။ URL Safe Encoding လုပ်ခြင်း
+        encoded_priv = urllib.parse.quote(priv)
+        encoded_addr = urllib.parse.quote(fixed_address)
+        encoded_pub = urllib.parse.quote(fixed_public_key)
+
+        # ၇။ WireGuard URI တည်ဆောက်ခြင်း
+        uri_profile = (
+            f"wireguard://{encoded_priv}@{endpoint}"
+            f"?address={encoded_addr}"
+            f"&reserved={fixed_reserved}"
+            f"&publickey={encoded_pub}"
+            f"&mtu={mtu}#{hash_id}"
+        )
+
+        # ၈။ Title ပေါင်းထည့်ပြီး Base64 ပြောင်းခြင်း
+        profile_content = "//profile-title: tg @mhwarp\n" + uri_profile
+        final_b64 = base64.b64encode(profile_content.encode()).decode()
+
+        # ဖိုင်များကို ပြန်ရှင်းပါ
+        reset_wgcf()
+        
+        return final_b64
+
     except Exception as e:
-        print(f"Error occurred: {e}")
+        raise Exception(f"WGCF Generation Error: {e}")
     
 async def is_joined_channel(bot, uid):
     try:
