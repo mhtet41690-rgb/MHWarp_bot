@@ -143,59 +143,54 @@ def set_last_time(uid, col_name):
     cur.execute(f"UPDATE users SET {col_name}=? WHERE user_id=?", (int(time.time()), str(uid)))
     conn.commit()
 
-# ================= CORE LOGIC =================
-    def generate_hiddify_base64():
-    priv = wg_genkey(); pub = wg_pubkey(priv)
+# ================= CORE LOGIC ===============
+def base64_to_decimal(b64_str):
+    """Base64 string ကို Decimal array (Reserved bytes) အဖြစ်ပြောင်းပေးတဲ့ function"""
+    decoded_bytes = base64.b64decode(b64_str)
+    return [int(b) for b in decoded_bytes]
+
+def generate_hiddify_base64():
+    priv = wg_genkey()
+    pub = wg_pubkey(priv)
+    
+    # Register account
     reg = api_call("POST", "reg", data={
-        "install_id": "", "tos": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        "install_id": "", 
+        "tos": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
         "key": pub, "fcm_token": "", "type": "ios", "locale": "en_US",
     })
+    
     cid, token = reg["result"]["id"], reg["result"]["token"]
+    
+    # Enable WARP and get config
     res = api_call("PATCH", f"reg/{cid}", token, {"warp_enabled": True})
     cfg = res["result"]["config"]
-
-    # ✅ Generate reserved from client_id
-    client_id_b64 = cfg["client_id"]
-    client_id_bytes = base64.b64decode(client_id_b64)
-    reserved = list(client_id_bytes[:3])  # first 3 bytes only
+    
+    # --- Reserved bytes ကို ယူတဲ့အပိုင်း ---
+    # API response ထဲက client_id ကို ယူပြီး Decimal ပြောင်းတယ်
+    client_id_b64 = cfg.get("client_id", "")
+    reserved_values = base64_to_decimal(client_id_b64) if client_id_b64 else [0, 0, 0]
+    # -----------------------------------
 
     conf = {
- "outbounds": [],
- "endpoints": [
-  {
-   "type": "wireguard",
-   "tag": "@mhwarp_bot",
-   "mtu": 1280,
-   "address": [
-                    cfg["interface"]["addresses"]["v4"] + "/32",
-                    cfg["interface"]["addresses"]["v6"] + "/128"
+        "outbounds": [
+            {
+                "tag": "@mhwarp",
+                "type": "wireguard",
+                "private_key": priv,
+                "server": "162.159.192.1",
+                "server_port": 500,
+                "peer_public_key": cfg["peers"][0]["public_key"],
+                "local_address": [
+                    "172.16.0.2/32",
+                    "fd00:53b1:151:1::1/128" # ဒါက ပုံမှန် warp address ပါ
                 ],
-   "private_key": priv,
-   "peers": [
-    {
-     "address": "162.159.192.1",
-     "port": 500,
-     "public_key": cfg["peers"][0]["public_key"],
-     "allowed_ips": [
-      "0.0.0.0/0",
-      "::/0"
-     ],
-     "reserved": reserved,
+                "reserved": reserved_values, # အလိုအလျောက် generate လုပ်ထားတဲ့ values
+                "mtu": 1280
+            }
+        ]
     }
-   ],
-   "noise": {
-    "fake_packet": {
-     "enabled": true,
-     "count": "2-10",
-     "size": "30-50",
-     "delay": "30-50",
-     "mode": "m4"
-    }
-   }
-  }
- ]
-}
-
+    
     profile = "//profile-title: tg @mhwarp\n" + json.dumps(conf, separators=(",", ":"))
     return base64.b64encode(profile.encode()).decode()
     
