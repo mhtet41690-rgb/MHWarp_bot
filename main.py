@@ -154,22 +154,40 @@ def generate_hiddify_base64():
     res = api_call("PATCH", f"reg/{cid}", token, {"warp_enabled": True})
     cfg = res["result"]["config"]
     conf = {
-  "outbounds": [
+ "outbounds": [],
+ "endpoints": [
+  {
+   "type": "wireguard",
+   "tag": "@mhwarp_bot",
+   "mtu": 1280,
+   "address": [
+    "172.16.0.2/32",
+    "2606:4700:110:8f4c:7e47:7e79:dfc3:ea74/128"
+   ],
+   "private_key": priv,
+   "peers": [
     {
-      "tag": "@mhwarp",
-      "type": "wireguard",
-      "private_key": priv,
-      "server": "162.159.192.1",
-      "server_port": 500,
-      "peer_public_key": cfg["peers"][0]["public_key"],
-      "local_address": [
-        "172.16.0.2/32",
-        "2606:4700:110:8488:6b29:b867:a0f4:afb4/128"
-      ],
-      "reserved": [102, 246, 136],
-      "mtu": 1280
+     "address": "162.159.192.1",
+     "port": 500,
+     "public_key": cfg["peers"][0]["public_key"],
+     "allowed_ips": [
+      "0.0.0.0/0",
+      "::/0"
+     ],
+     "reserved": "AAAA"
     }
-  ]
+   ],
+   "noise": {
+    "fake_packet": {
+     "enabled": true,
+     "count": "2-10",
+     "size": "30-50",
+     "delay": "30-50",
+     "mode": "m4"
+    }
+   }
+  }
+ ]
 }
     profile = "//profile-title: tg @mhwarp\n" + json.dumps(conf, separators=(",", ":"))
     return base64.b64encode(profile.encode()).decode()
