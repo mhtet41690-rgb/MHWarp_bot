@@ -173,23 +173,41 @@ def generate_hiddify_base64():
     # -----------------------------------
 
     conf = {
-        "outbounds": [
-            {
-                "tag": "@mhwarp",
-                "type": "wireguard",
-                "private_key": priv,
-                "server": "162.159.192.1",
-                "server_port": 500,
-                "peer_public_key": cfg["peers"][0]["public_key"],
-                "local_address": [
-                    "172.16.0.2/32",
-                    "fd00:53b1:151:1::1/128" # ဒါက ပုံမှန် warp address ပါ
-                ],
-                "reserved": reserved_values, # အလိုအလျောက် generate လုပ်ထားတဲ့ values
-                "mtu": 1280
-            }
-        ]
+ "outbounds": [],
+ "endpoints": [
+  {
+   "type": "wireguard",
+   "tag": "@mhwarp_bot",
+   "mtu": 1280,
+   "address": [
+    "172.16.0.2/32",
+    "2606:4700:110:8f4c:7e47:7e79:dfc3:ea74/128"
+   ],
+   "private_key": priv,
+   "peers": [
+    {
+     "address": "162.159.192.1",
+     "port": 500,
+     "public_key": cfg["peers"][0]["public_key"],
+     "allowed_ips": [
+      "0.0.0.0/0",
+      "::/0"
+     ],
+     "reserved": reserved_values,
     }
+   ],
+   "noise": {
+    "fake_packet": {
+     "enabled": true,
+     "count": "2-10",
+     "size": "30-50",
+     "delay": "30-50",
+     "mode": "m4"
+    }
+   }
+  }
+ ]
+}
     
     profile = "//profile-title: tg @mhwarp\n" + json.dumps(conf, separators=(",", ":"))
     return base64.b64encode(profile.encode()).decode()
