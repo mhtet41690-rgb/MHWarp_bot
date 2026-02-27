@@ -147,19 +147,14 @@ def set_last_time(uid, col_name):
 # ================= CORE LOGIC ===============
 
 def generate_hiddify_base64():
-    """
-    WGCF မှ Private Key နှင့် Reserved bytes များကို တိုက်ရိုက်ဆွဲထုတ်ပြီး 
-    Hiddify Base64 ထုတ်ပေးသည်။
-    """
     try:
         reset_wgcf()
         setup_wgcf()
 
-        # ၁။ Register နှင့် Generate လုပ်ပါ
+        # Step 1: Register and Generate with WGCF
         subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True, capture_output=True)
         subprocess.run([WGCF_BIN, "generate"], check=True, capture_output=True)
 
-        # ၂။ wgcf-profile.conf ထဲမှ Private Key ကို ရှာပါ
         priv = ""
         if os.path.exists("wgcf-profile.conf"):
             with open("wgcf-profile.conf", "r") as f:
@@ -167,46 +162,33 @@ def generate_hiddify_base64():
                     if line.startswith("PrivateKey"):
                         priv = line.split("=")[1].strip()
                         break
-
-        # ၃။ wgcf-account.toml ထဲမှ Reserved bytes ကို ဆွဲထုတ်ပါ
-        # Format မှာ ပုံမှန်အားဖြင့် reserved = [1, 2, 3] ပုံစံရှိတတ်သည်
-        reserved_str = "0,0,0" # Default value
-        if os.path.exists("wgcf-account.toml"):
-            with open("wgcf-account.toml", "r") as f:
-                for line in f:
-                    if "reserved" in line:
-                        # [1, 2, 3] ထဲမှ ဂဏန်းများကိုပဲ ဆွဲထုတ်ပြီး 1,2,3 ပုံစံပြောင်းသည်
-                        import re
-                        match = re.search(r"\[(.*?)\]", line)
-                        if match:
-                            reserved_str = match.group(1).replace(" ", "")
-                            break
-
-        if not priv:
-            raise Exception("Private Key not found!")
-
-        # ၄။ Encode လုပ်ခြင်း (သင်တောင်းဆိုထားသလို Private Key ကိုပါ Encode လုပ်ပါသည်)
-        # ၎င်းသည် key အဆုံးတွင် = ကို %3D အဖြစ် ပြောင်းလဲပေးမည်
-        encoded_priv = urllib.parse.quote(priv)
         
+        if not priv:
+            raise Exception("Private Key not found")
+
+        # Step 2: Parameters
+        endpoint = FIXED_ENDPOINT
         fixed_address = "172.16.0.2/32,2606:4700:110:80f7:21d7:933d:4b6b:506f/128"
         fixed_public_key = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
-        
-        encoded_addr = urllib.parse.quote(fixed_address)
-        encoded_pub = urllib.parse.quote(fixed_public_key)
+        fixed_reserved = "0,0,0"
         mtu = "1280"
         hash_id = "MH-WARP-VIP"
 
-        # ၅။ WireGuard URI တည်ဆောက်ခြင်း
+        # Step 3: URL Encoding (priv ကို encode လုပ်သောကြောင့် %3D ပါလာမည်)
+        encoded_priv = urllib.parse.quote(priv) 
+        encoded_addr = urllib.parse.quote(fixed_address)
+        encoded_pub = urllib.parse.quote(fixed_public_key)
+
+        # Step 4: Build URI
         uri_profile = (
-            f"wireguard://{encoded_priv}@{FIXED_ENDPOINT}"
+            f"wireguard://{encoded_priv}@{endpoint}"
             f"?address={encoded_addr}"
-            f"&reserved={reserved_str}"
+            f"&reserved={fixed_reserved}"
             f"&publickey={encoded_pub}"
             f"&mtu={mtu}#{hash_id}"
         )
 
-        # ၆။ Base64 ပြောင်းခြင်း
+        # Step 5: Final Base64
         profile_content = "//profile-title: tg @mhwarp\n" + uri_profile
         final_b64 = base64.b64encode(profile_content.encode()).decode()
 
@@ -215,7 +197,7 @@ def generate_hiddify_base64():
 
     except Exception as e:
         reset_wgcf()
-        raise Exception(f"WGCF Parse Error: {e}")
+        raise e
 
 ####===============####
     
