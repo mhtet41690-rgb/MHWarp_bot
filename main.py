@@ -174,7 +174,7 @@ def generate_hiddify_base64():
       "0.0.0.0/0",
       "::/0"
      ],
-     "reserved": "AAAA"
+     "reserved": ${reservedDec},
     }
    ],
    "noise": {
