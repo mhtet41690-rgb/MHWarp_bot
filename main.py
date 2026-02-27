@@ -8,6 +8,7 @@ import sqlite3
 import requests
 import json
 import base64
+import urllib.parse
 from datetime import datetime, timezone, timedelta
 
 from nacl.public import PrivateKey
@@ -149,68 +150,70 @@ def base64_to_decimal(b64_str):
     decoded_bytes = base64.b64decode(b64_str)
     return [int(b) for b in decoded_bytes]
 
+
+
 def generate_hiddify_base64():
-    priv = wg_genkey()
+    """
+    Cloudflare API မှ Private Key ကိုယူပြီး 
+    သတ်မှတ်ထားသော WireGuard URI ပုံစံဖြင့် Base64 ထုတ်ပေးသည်။
+    """
+    
+    # 1. Key အသစ်များ Generate လုပ်ခြင်း
+    priv = wg_genkey() 
     pub = wg_pubkey(priv)
     
-    # Register account
+    # 2. Cloudflare API ကိုခေါ်ပြီး Register လုပ်ခြင်း
+    # ဤအဆင့်သည် Account အသစ်တစ်ခုကို Cloudflare ဘက်တွင် တကယ်မှတ်ပုံတင်ပေးပါသည်
     reg = api_call("POST", "reg", data={
         "install_id": "", 
         "tos": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
         "key": pub, "fcm_token": "", "type": "ios", "locale": "en_US",
     })
     
-    cid, token = reg["result"]["id"], reg["result"]["token"]
+    cid = reg["result"]["id"]
+    token = reg["result"]["token"]
     
-    # Enable WARP and get config
-    res = api_call("PATCH", f"reg/{cid}", token, {"warp_enabled": True})
-    cfg = res["result"]["config"]
-    
-    # --- Reserved bytes ကို ယူတဲ့အပိုင်း ---
-    # API response ထဲက client_id ကို ယူပြီး Decimal ပြောင်းတယ်
-    client_id_b64 = cfg.get("client_id", "")
-    reserved_values = base64_to_decimal(client_id_b64) if client_id_b64 else [0, 0, 0]
-    # -----------------------------------
+    # Account ကို WARP အဖြစ် Activate လုပ်ခြင်း
+    api_call("PATCH", f"reg/{cid}", token, {"warp_enabled": True})
 
-    conf = {
- "outbounds": [],
- "endpoints": [
-  {
-   "type": "wireguard",
-   "tag": "@mhwarp_bot",
-   "mtu": 1280,
-   "address": [
-    "172.16.0.2/32",
-    "2606:4700:110:8f4c:7e47:7e79:dfc3:ea74/128"
-   ],
-   "private_key": priv,
-   "peers": [
-    {
-     "address": "162.159.192.1",
-     "port": 500,
-     "public_key": cfg["peers"][0]["public_key"],
-     "allowed_ips": [
-      "0.0.0.0/0",
-      "::/0"
-     ],
-     "reserved": reserved_values,
-    }
-   ],
-   "noise": {
-    "fake_packet": {
-     "enabled": True,
-     "count": "2-10",
-     "size": "30-50",
-     "delay": "30-50",
-     "mode": "m4"
-    }
-   }
-  }
- ]
-}
+    # 3. သင်သတ်မှတ်ပေးထားသော Default (Fixed) Values များ
+    endpoint = "162.159.192.1:500"
+    fixed_address = "172.16.0.2/32,2606:4700:110:80f7:21d7:933d:4b6b:506f/128"
+    fixed_public_key = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
+    fixed_reserved = "0,0,0"
+    mtu = "1280"
+    hash_id = "1772175787674"
+
+    # 4. URL Safe ဖြစ်အောင် Encode လုပ်ခြင်း
+    encoded_priv = urllib.parse.quote(priv)
+    encoded_addr = urllib.parse.quote(fixed_address)
+    encoded_pub = urllib.parse.quote(fixed_public_key)
+
+    # 5. WireGuard URI အဖြစ် တည်ဆောက်ခြင်း
+    # သင်ပေးထားသည့် format အတိုင်း တိကျစွာ တည်ဆောက်ပါသည်
+    uri_profile = (
+        f"wireguard://{encoded_priv}@{endpoint}"
+        f"?address={encoded_addr}"
+        f"&reserved={fixed_reserved}"
+        f"&publickey={encoded_pub}"
+        f"&mtu={mtu}#{hash_id}"
+    )
+
+    # 6. Profile Title ပေါင်းထည့်ခြင်း (Hiddify တွင် အမည်ပေါ်စေရန်)
+    profile_content = "//profile-title: tg @mhwarp\n" + uri_profile
     
-    profile = "//profile-title: tg @mhwarp\n" + json.dumps(conf, separators=(",", ":"))
-    return base64.b64encode(profile.encode()).decode()
+    # 7. Base64 အဖြစ် ပြောင်းလဲခြင်း
+    return base64.b64encode(profile_content.encode()).decode()
+
+# --- Program ကို Run ခြင်း ---
+if __name__ == "__main__":
+    try:
+        final_base64 = generate_hiddify_base64()
+        print("--- Generated Hiddify Base64 Profile ---")
+        print(final_base64)
+        print("----------------------------------------")
+    except Exception as e:
+        print(f"Error occurred: {e}")
     
 async def is_joined_channel(bot, uid):
     try:
