@@ -153,7 +153,8 @@ def generate_hiddify_base64():
     cid, token = reg["result"]["id"], reg["result"]["token"]
     res = api_call("PATCH", f"reg/{cid}", token, {"warp_enabled": True})
     cfg = res["result"]["config"]
-    conf = {
+    conf=$(cat <<-EOM 
+{
  "outbounds": [],
  "endpoints": [
   {
