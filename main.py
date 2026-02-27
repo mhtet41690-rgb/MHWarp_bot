@@ -149,64 +149,71 @@ def set_last_time(uid, col_name):
 def generate_hiddify_base64():
     """
     ./wgcf binary ကိုအသုံးပြုပြီး account register လုပ်ကာ 
-    Hiddify သုံးရန် Base64 format ထုတ်ပေးသည်။
+    Hiddify app အတွက် WireGuard URI ကို Base64 format ဖြင့် ထုတ်ပေးသည်။
     """
     try:
-        # ၁။ အရင်ရှိနေတဲ့ wgcf file တွေကို ရှင်းထုတ်ပါ
+        # ၁။ အရင်ရှိနေသော config ဖိုင်ဟောင်းများကို ရှင်းလင်းပြီး setup လုပ်ပါ
         reset_wgcf()
         setup_wgcf()
 
-        # ၂။ WGCF ကိုသုံးပြီး Register လုပ်ပါ (wgcf-account.toml ထွက်လာပါမည်)
+        # ၂။ Cloudflare account အသစ် register လုပ်ပါ
+        # capture_output=True သည် log များ screen ပေါ်မတက်စေရန် ဖြစ်သည်
         subprocess.run([WGCF_BIN, "register", "--accept-tos"], check=True, capture_output=True)
         
-        # ၃။ WGCF ကနေ Profile ထုတ်ပါ (wgcf-profile.conf ထွက်လာပါမည်)
+        # ၃။ WireGuard profile (.conf) ဖိုင်ကို generate လုပ်ပါ
         subprocess.run([WGCF_BIN, "generate"], check=True, capture_output=True)
 
-        # ၄။ wgcf-profile.conf ထဲက Private Key ကို ဖတ်ယူပါ
+        # ၄။ wgcf-profile.conf ထဲမှ Private Key ကို ရှာဖွေဖတ်ယူပါ
         priv = ""
         if os.path.exists("wgcf-profile.conf"):
             with open("wgcf-profile.conf", "r") as f:
                 for line in f:
                     if line.startswith("PrivateKey"):
+                        # PrivateKey = XXXXX... ပုံစံမှ key ကို ခွဲထုတ်ယူခြင်း
                         priv = line.split("=")[1].strip()
                         break
         
         if not priv:
-            raise Exception("Private Key ကို wgcf ဖိုင်ထဲတွင် ရှာမတွေ့ပါ။")
+            raise Exception("Private Key could not be found in wgcf-profile.conf")
 
         # ၅။ Hiddify အတွက် လိုအပ်သော Fixed Values များ
         endpoint = FIXED_ENDPOINT  # 162.159.192.1:500
         fixed_address = "172.16.0.2/32,2606:4700:110:80f7:21d7:933d:4b6b:506f/128"
         fixed_public_key = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
-        fixed_reserved = "0,0,0" # သို့မဟုတ် wgcf-account.toml ထဲက reserved ကိုသုံးနိုင်သည်
+        fixed_reserved = "0,0,0"
         mtu = "1280"
-        hash_id = "1772175787674"
+        hash_id = "MH-WARP-VIP" # Config name အဖြစ် ပေါ်မည့်စာသား
 
         # ၆။ URL Safe Encoding လုပ်ခြင်း
-        encoded_priv = urllib.parse.quote(priv)
+        # မှတ်ချက် - Private Key ကို Encode မလုပ်ရပါ။ Error တက်နိုင်ပါသည်။
         encoded_addr = urllib.parse.quote(fixed_address)
         encoded_pub = urllib.parse.quote(fixed_public_key)
 
-        # ၇။ WireGuard URI တည်ဆောက်ခြင်း
+        # ၇။ WireGuard URI ကို တည်ဆောက်ခြင်း
+        # Format: wireguard://PRIVATE_KEY@ENDPOINT?address=...
         uri_profile = (
-            f"wireguard://{encoded_priv}@{endpoint}"
+            f"wireguard://{priv}@{endpoint}"
             f"?address={encoded_addr}"
             f"&reserved={fixed_reserved}"
             f"&publickey={encoded_pub}"
             f"&mtu={mtu}#{hash_id}"
         )
 
-        # ၈။ Title ပေါင်းထည့်ပြီး Base64 ပြောင်းခြင်း
+        # ၈။ Hiddify တွင် Profile Title ပေါ်စေရန်နှင့် Base64 သို့ ပြောင်းလဲခြင်း
         profile_content = "//profile-title: tg @mhwarp\n" + uri_profile
         final_b64 = base64.b64encode(profile_content.encode()).decode()
 
-        # ဖိုင်များကို ပြန်ရှင်းပါ
+        # ၉။ အသုံးပြုပြီးသား ဖိုင်များကို ပြန်လည်ရှင်းလင်းပါ
         reset_wgcf()
         
         return final_b64
 
     except Exception as e:
-        raise Exception(f"WGCF Generation Error: {e}")
+        # Error ဖြစ်ပါက ဖိုင်များကို ရှင်းလင်းပြီး error message ပြန်ပေးပါ
+        reset_wgcf()
+        raise Exception(f"Hiddify Generate Error: {e}")
+
+####===============####
     
 async def is_joined_channel(bot, uid):
     try:
