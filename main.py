@@ -179,7 +179,6 @@ def generate_hiddify_base64():
    ],
    "noise": {
     "fake_packet": {
-     "enabled": true,
      "count": "2-10",
      "size": "30-50",
      "delay": "30-50",
