@@ -144,17 +144,31 @@ def set_last_time(uid, col_name):
     conn.commit()
 
 # ================= CORE LOGIC =================
-def generate_hiddify_base64():
-    priv = wg_genkey(); pub = wg_pubkey(priv)
+    def generate_hiddify_base64():
+    priv = wg_genkey()
+    pub = wg_pubkey(priv)
+
     reg = api_call("POST", "reg", data={
-        "install_id": "", "tos": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-        "key": pub, "fcm_token": "", "type": "ios", "locale": "en_US",
+        "install_id": "",
+        "tos": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        "key": pub,
+        "fcm_token": "",
+        "type": "ios",
+        "locale": "en_US",
     })
-    cid, token = reg["result"]["id"], reg["result"]["token"]
+
+    cid = reg["result"]["id"]
+    token = reg["result"]["token"]
+
     res = api_call("PATCH", f"reg/{cid}", token, {"warp_enabled": True})
     cfg = res["result"]["config"]
-    conf=$(cat <<-EOM 
-{
+
+    # ✅ Generate reserved from client_id
+    client_id_b64 = cfg["client_id"]
+    client_id_bytes = base64.b64decode(client_id_b64)
+    reserved = list(client_id_bytes[:3])  # first 3 bytes only
+
+    conf = {
  "outbounds": [],
  "endpoints": [
   {
@@ -162,9 +176,9 @@ def generate_hiddify_base64():
    "tag": "@mhwarp_bot",
    "mtu": 1280,
    "address": [
-    "172.16.0.2/32",
-    "2606:4700:110:8f4c:7e47:7e79:dfc3:ea74/128"
-   ],
+                    cfg["interface"]["addresses"]["v4"] + "/32",
+                    cfg["interface"]["addresses"]["v6"] + "/128"
+                ],
    "private_key": priv,
    "peers": [
     {
@@ -175,11 +189,12 @@ def generate_hiddify_base64():
       "0.0.0.0/0",
       "::/0"
      ],
-     "reserved": ${reservedDec},
+     "reserved": reserved,
     }
    ],
    "noise": {
     "fake_packet": {
+     "enabled": true,
      "count": "2-10",
      "size": "30-50",
      "delay": "30-50",
@@ -189,6 +204,7 @@ def generate_hiddify_base64():
   }
  ]
 }
+
     profile = "//profile-title: tg @mhwarp\n" + json.dumps(conf, separators=(",", ":"))
     return base64.b64encode(profile.encode()).decode()
 
