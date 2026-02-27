@@ -49,9 +49,10 @@ PAYMENT_INFO = (
     "📞(09982383696)\n\n"
     "🏦 Wave Money : Mg Kyaw Kyaw Naing\n"
     "📞 09972752831\n\n"
-    "💵 Amount : 3000 Ks\n"
-    "📷 ပြေစာပုံ ကို bot မှာ ပို့ပေးပါ ။ admin မှ စစ်ဆေးပေးသွားပါမည်။\n"
-    "မိနစ် ၃၀ အတွင်း vip မဖြစ်ပါက\n admin @mhwarpadmin သို့ဆက်သွယ်ပေးပါ။"
+    "💵 Amount : 3000 Ks\n\n"
+    "📷 ပြေစာပုံ ကို bot မှာ ပို့ပေးပါ ။ admin မှ စစ်ဆေးပေးသွားပါမည်။\n\n"
+    "🕣 မိနစ် ၃၀ အတွင်း vip မဖြစ်ပါက\n"
+    "🧑admin @mhwarpadmin သို့ဆက်သွယ်ပေးပါ။"
     
 )
 
@@ -181,7 +182,7 @@ async def is_joined_channel(bot, uid):
 
 # ================= HANDLERS =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 မင်္ဂလာပါ\n\nလိုင်းကောင်းတဲ့ VPN Key ထုတ်နိုင်ပါပြီ", reply_markup=MAIN_KB)
+    await update.message.reply_text("👋 မင်္ဂလာပါ\n\nလိုင်းကောင်းတဲ့ VPN Key ထုတ်နိုင်ပါပြီ\n\n အောက်မှ ခလုပ်များကိုနှိပ်ပြီး ထုတ်ပါ", reply_markup=MAIN_KB)
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
