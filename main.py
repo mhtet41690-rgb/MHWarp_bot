@@ -145,21 +145,12 @@ def set_last_time(uid, col_name):
 
 # ================= CORE LOGIC =================
     def generate_hiddify_base64():
-    priv = wg_genkey()
-    pub = wg_pubkey(priv)
-
+    priv = wg_genkey(); pub = wg_pubkey(priv)
     reg = api_call("POST", "reg", data={
-        "install_id": "",
-        "tos": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-        "key": pub,
-        "fcm_token": "",
-        "type": "ios",
-        "locale": "en_US",
+        "install_id": "", "tos": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        "key": pub, "fcm_token": "", "type": "ios", "locale": "en_US",
     })
-
-    cid = reg["result"]["id"]
-    token = reg["result"]["token"]
-
+    cid, token = reg["result"]["id"], reg["result"]["token"]
     res = api_call("PATCH", f"reg/{cid}", token, {"warp_enabled": True})
     cfg = res["result"]["config"]
 
@@ -207,7 +198,7 @@ def set_last_time(uid, col_name):
 
     profile = "//profile-title: tg @mhwarp\n" + json.dumps(conf, separators=(",", ":"))
     return base64.b64encode(profile.encode()).decode()
-
+    
 async def is_joined_channel(bot, uid):
     try:
         m = await bot.get_chat_member(f"@{CHANNEL_USERNAME}", uid)
