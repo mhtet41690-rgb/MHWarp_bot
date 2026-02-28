@@ -2,3 +2,4 @@ python-telegram-bot
 requests
 qrcode[pil]
 pynacl
+toml
